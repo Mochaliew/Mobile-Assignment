@@ -41,15 +41,21 @@ class _CreateCourseState extends State<CreateCourse> {
 
   Future<void> _fetchCategories() async {
     try {
-      final response =
-      await supabase.from('categories').select().order('name');
-      setState(() {
-        _categories = (response as List)
-            .map((e) => Category.fromJson(e))
-            .toList();
-      });
+      final response = await supabase
+          .from('categories')
+          .select()
+          .eq('is_deleted', false)
+          .order('name');
+      
+      if (mounted) {
+        setState(() {
+          _categories = (response as List)
+              .map((e) => Category.fromJson(e as Map<String, dynamic>))
+              .toList();
+        });
+      }
     } catch (e) {
-      snackbar('Error loading categories: $e', Colors.red);
+      if (mounted) snackbar('Error loading categories: $e', Colors.red);
     }
   }
 
@@ -89,7 +95,7 @@ class _CreateCourseState extends State<CreateCourse> {
       snackbar('Course submitted! Pending admin approval.');
       if (mounted) Navigator.pop(context);
     } catch (e) {
-      snackbar('Error creating course: $e', Colors.red);
+      if (mounted) snackbar('Error creating course: $e', Colors.red);
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -116,18 +122,21 @@ class _CreateCourseState extends State<CreateCourse> {
               ),
             ),
             const SizedBox(height: 12),
-            DropdownButtonFormField<int>(
-              value: _selectedCategoryId,
-              decoration: const InputDecoration(
-                labelText: 'Category',
-                border: OutlineInputBorder(),
-              ),
-              items: _categories
-                  .map((c) => DropdownMenuItem(
-                  value: c.categoryId, child: Text(c.name)))
-                  .toList(),
-              onChanged: (v) => setState(() => _selectedCategoryId = v),
-            ),
+            _isLoading && _categories.isEmpty
+                ? const LinearProgressIndicator()
+                : DropdownButtonFormField<int>(
+                    value: _selectedCategoryId,
+                    decoration: const InputDecoration(
+                      labelText: 'Category',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: _categories
+                        .map((c) => DropdownMenuItem(
+                            value: c.categoryId, child: Text(c.name)))
+                        .toList(),
+                    onChanged: (v) => setState(() => _selectedCategoryId = v),
+                    validator: (v) => v == null ? 'Required' : null,
+                  ),
             const SizedBox(height: 12),
             TextField(
               controller: _descriptionController,
@@ -141,7 +150,7 @@ class _CreateCourseState extends State<CreateCourse> {
             TextField(
               controller: _priceController,
               keyboardType:
-              const TextInputType.numberWithOptions(decimal: true),
+                  const TextInputType.numberWithOptions(decimal: true),
               decoration: const InputDecoration(
                 labelText: 'Price (RM)',
                 prefixText: 'RM ',
@@ -169,10 +178,10 @@ class _CreateCourseState extends State<CreateCourse> {
                     ),
                     child: _isLoading
                         ? const SizedBox(
-                        width: 22,
-                        height: 22,
-                        child: CircularProgressIndicator(
-                            color: Colors.white, strokeWidth: 2))
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(
+                                color: Colors.white, strokeWidth: 2))
                         : const Text('Submit Course'),
                   ),
                 ),

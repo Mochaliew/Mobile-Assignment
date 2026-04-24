@@ -56,11 +56,8 @@ class _TeacherLoginState extends State<TeacherLogin> {
         return;
       }
 
-      // Step 2: Verify password (plain text comparison)
-      // Note: The backend uses PBKDF2 hashing, but user requested plain text comparison here.
-      // If the DB contains hashes, this comparison will fail. 
-      // Assuming you want to compare against the 'password_hash' column if that's where it's stored.
-      if (userResponse['password_hash'] != password && userResponse['password'] != password) {
+      // Step 2: Verify password (plain text comparison with password_hash column)
+      if (userResponse['password_hash'] != password) {
         snackbar('Invalid email / password.', Colors.red);
         return;
       }
