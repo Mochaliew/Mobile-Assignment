@@ -43,8 +43,7 @@ class _TeacherLoginState extends State<TeacherLogin> {
     setState(() => _isLoading = true);
 
     try {
-      // Step 1: Find user by email with Teacher role
-      // Note: Using 'users' table as the main account table
+      // Step 1: Find user by email with Teacher role in 'users' table
       final userResponse = await supabase
           .from('users')
           .select()
@@ -58,22 +57,41 @@ class _TeacherLoginState extends State<TeacherLogin> {
       }
 
       // Step 2: Verify password (plain text comparison)
-      if (userResponse['password'] != password) {
+      // Note: The backend uses PBKDF2 hashing, but user requested plain text comparison here.
+      // If the DB contains hashes, this comparison will fail. 
+      // Assuming you want to compare against the 'password_hash' column if that's where it's stored.
+      if (userResponse['password_hash'] != password && userResponse['password'] != password) {
         snackbar('Invalid email / password.', Colors.red);
         return;
       }
 
-      // Step 3: Check if active (assuming is_active is in users table if teachers table is missing)
-      // If your schema uses the 'users' table for everything, we use its ID.
-      // Based on the error, 'teachers' table doesn't exist.
-      // We'll assume the 'users' table holds the teacher info if 'teachers' table is missing.
+      // Step 3: Get teacher record from 'teachers' table
+      final teacherResponse = await supabase
+          .from('teachers')
+          .select()
+          .eq('user_id', userResponse['id'])
+          .maybeSingle();
 
-      // Step 4: Save session using the user ID as teacherId
-      TeacherSession.teacherId = userResponse['id'];
-      TeacherSession.teacherName = userResponse['full_name'] ?? userResponse['name'] ?? '';
+      if (teacherResponse == null) {
+        snackbar('Teacher profile not found.', Colors.red);
+        return;
+      }
+
+      // Step 4: Check if active
+      if (teacherResponse['is_active'] != true) {
+        snackbar(
+          'Your account has been deactivated. Please contact administrator.',
+          Colors.red,
+        );
+        return;
+      }
+
+      // Step 5: Save session
+      TeacherSession.teacherId = teacherResponse['teacher_id'];
+      TeacherSession.teacherName = userResponse['full_name'] ?? '';
       TeacherSession.teacherEmail = userResponse['email'] ?? '';
 
-      // Step 5: Go to dashboard
+      // Step 6: Go to dashboard
       if (!mounted) return;
       Navigator.pushReplacement(
         context,

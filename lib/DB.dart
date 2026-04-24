@@ -14,19 +14,50 @@ class TeacherSession {
 // --- User --------------------------------------------------------------------
 class User {
   final int id;
-  final String name;
+  final String fullName;
   final String email;
-  final String password;
-  final DateTime created_at;
+  final String passwordHash;
+  final String role; // Admin, Teacher, Student
+  final DateTime createdAt;
 
-  User({required this.id, required this.name, required this.email, required this.password, required this.created_at});
+  User({
+    required this.id,
+    required this.fullName,
+    required this.email,
+    required this.passwordHash,
+    required this.role,
+    required this.createdAt,
+  });
 
   factory User.fromJson(Map<String, dynamic> map) => User(
     id: map['id'],
-    name: map['name'],
-    email: map['email'],
-    password: map['password'],
-    created_at: map['created_at']
+    fullName: map['full_name'] ?? '',
+    email: map['email'] ?? '',
+    passwordHash: map['password_hash'] ?? '',
+    role: map['role'] ?? '',
+    createdAt: DateTime.tryParse(map['created_at'] ?? '') ?? DateTime.now(),
+  );
+}
+
+// --- Teacher -----------------------------------------------------------------
+class Teacher {
+  final int teacherId;
+  final int userId;
+  final String subjectArea;
+  final bool isActive;
+
+  Teacher({
+    required this.teacherId,
+    required this.userId,
+    required this.subjectArea,
+    required this.isActive,
+  });
+
+  factory Teacher.fromJson(Map<String, dynamic> map) => Teacher(
+    teacherId: map['teacher_id'],
+    userId: map['user_id'],
+    subjectArea: map['subject_area'] ?? '',
+    isActive: map['is_active'] ?? true,
   );
 }
 
@@ -53,6 +84,7 @@ class Course {
   final String description;
   final double price;
   final bool isApproved;
+  final bool isPublished;
   final bool isRejected;
   final String? rejectionReason;
   final int enrollmentCount;
@@ -66,6 +98,7 @@ class Course {
     required this.description,
     required this.price,
     required this.isApproved,
+    required this.isPublished,
     required this.isRejected,
     this.rejectionReason,
     this.enrollmentCount = 0,
@@ -80,6 +113,7 @@ class Course {
     description: map['description'] ?? '',
     price: (map['price'] ?? 0).toDouble(),
     isApproved: map['is_approved'] ?? false,
+    isPublished: map['is_published'] ?? false,
     isRejected: map['is_rejected'] ?? false,
     rejectionReason: map['rejection_reason'],
     enrollmentCount: (map['enrollments'] as List?)?.length ?? 0,
@@ -245,7 +279,7 @@ class FinalExam {
   );
 }
 
-// --- question ----------------------------------------------------------------
+// --- question form -----------------------------------------------------------
 class QuestionForm {
   String questionDetail = '';
   String answerA = '';
