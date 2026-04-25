@@ -1,3 +1,4 @@
+// --- Teacher Dashboard Screen -------------------------------------------------
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide User;
 import 'package:intl/intl.dart';
@@ -42,7 +43,6 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
     try {
       final tid = TeacherSession.teacherId!;
 
-      // Get approved courses
       final coursesRes = await supabase
           .from('courses')
           .select('course_id, enrollments(enrollment_id)')
@@ -56,7 +56,6 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
       _totalCourses = courseIds.length;
 
       if (courseIds.isNotEmpty) {
-        // Distinct students
         final enrollRes = await supabase
             .from('enrollments')
             .select('student_id')
@@ -67,21 +66,18 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
         }
         _totalStudents = studentSet.length;
 
-        // Lessons count
         final lessonRes = await supabase
             .from('lessons')
             .select('lesson_id')
             .inFilter('course_id', courseIds);
         _totalLessons = (lessonRes as List).length;
 
-        // Assessments count
         final assessRes = await supabase
             .from('assessments')
             .select('assessment_id')
             .inFilter('course_id', courseIds);
         _totalAssessments = (assessRes as List).length;
 
-        // Upcoming lessons (next 5)
         final now = DateTime.now().toIso8601String();
         final upRes = await supabase
             .from('lessons')
@@ -92,7 +88,6 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
             .limit(5);
         _upcomingLessons = List<Map<String, dynamic>>.from(upRes as List);
 
-        // Recent assessments (last 5)
         final recRes = await supabase
             .from('assessments')
             .select('title, courses(title)')
@@ -142,7 +137,6 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Welcome banner
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(20),
@@ -180,8 +174,6 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
                 ),
               ),
               const SizedBox(height: 20),
-
-              // Quick Actions
               const Text('Quick Actions',
                   style: TextStyle(
                       fontSize: 17, fontWeight: FontWeight.bold)),
@@ -214,8 +206,6 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
                 ],
               ),
               const SizedBox(height: 20),
-
-              // Stats grid
               const Text('Overview',
                   style: TextStyle(
                       fontSize: 17, fontWeight: FontWeight.bold)),
@@ -247,8 +237,6 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
                 ],
               ),
               const SizedBox(height: 20),
-
-              // Upcoming Lessons
               const Text('📅 Upcoming Lessons',
                   style: TextStyle(
                       fontSize: 17, fontWeight: FontWeight.bold)),
@@ -278,8 +266,6 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
                 ),
               ),
               const SizedBox(height: 20),
-
-              // Recent Assessments
               const Text('📝 Recent Assessments',
                   style: TextStyle(
                       fontSize: 17, fontWeight: FontWeight.bold)),

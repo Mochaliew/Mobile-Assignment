@@ -1,3 +1,4 @@
+// --- View Course Screen ------------------------------------------------------
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide User;
 import '../DB.dart';
@@ -128,7 +129,6 @@ class _ViewCourseState extends State<ViewCourse> {
       ),
       body: Column(
         children: [
-          // Filter tabs
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.all(12),
@@ -215,8 +215,6 @@ class _ViewCourseState extends State<ViewCourse> {
     );
   }
 }
-
-// ─── Widgets local to this screen ────────────────────────────────────────────
 
 class _FilterChip extends StatelessWidget {
   final String label;

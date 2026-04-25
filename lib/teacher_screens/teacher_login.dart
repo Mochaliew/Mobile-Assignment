@@ -1,3 +1,4 @@
+// --- Teacher Login Screen ----------------------------------------------------
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide User;
 import '../DB.dart';
@@ -43,7 +44,6 @@ class _TeacherLoginState extends State<TeacherLogin> {
     setState(() => _isLoading = true);
 
     try {
-      // Step 1: Find user by email with Teacher role in 'users' table
       final userResponse = await supabase
           .from('users')
           .select()
@@ -56,13 +56,11 @@ class _TeacherLoginState extends State<TeacherLogin> {
         return;
       }
 
-      // Step 2: Verify password (plain text comparison with password_hash column)
       if (userResponse['password_hash'] != password) {
         snackbar('Invalid email / password.', Colors.red);
         return;
       }
 
-      // Step 3: Get teacher record from 'teachers' table
       final teacherResponse = await supabase
           .from('teachers')
           .select()
@@ -74,7 +72,6 @@ class _TeacherLoginState extends State<TeacherLogin> {
         return;
       }
 
-      // Step 4: Check if active
       if (teacherResponse['is_active'] != true) {
         snackbar(
           'Your account has been deactivated. Please contact administrator.',
@@ -83,12 +80,10 @@ class _TeacherLoginState extends State<TeacherLogin> {
         return;
       }
 
-      // Step 5: Save session
       TeacherSession.teacherId = teacherResponse['teacher_id'];
       TeacherSession.teacherName = userResponse['full_name'] ?? '';
       TeacherSession.teacherEmail = userResponse['email'] ?? '';
 
-      // Step 6: Go to dashboard
       if (!mounted) return;
       Navigator.pushReplacement(
         context,
@@ -110,7 +105,6 @@ class _TeacherLoginState extends State<TeacherLogin> {
           padding: const EdgeInsets.all(24),
           child: Column(
             children: [
-              // Icon
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: const BoxDecoration(
@@ -130,8 +124,6 @@ class _TeacherLoginState extends State<TeacherLogin> {
                 style: TextStyle(fontSize: 16, color: Colors.grey),
               ),
               const SizedBox(height: 32),
-
-              // Form card
               Container(
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(

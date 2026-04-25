@@ -1,4 +1,4 @@
-// ---- Session ----------------------------------------------------------------
+// --- Session -----------------------------------------------------------------
 class TeacherSession {
   static int? teacherId;
   static String? teacherName;
@@ -17,7 +17,7 @@ class User {
   final String fullName;
   final String email;
   final String passwordHash;
-  final String role; // Admin, Teacher, Student
+  final String role;
   final DateTime createdAt;
 
   User({
@@ -125,7 +125,7 @@ class CourseFile {
   final int courseFileId;
   final int lessonId;
   final String filePath;
-  final String fileType; // 'pdf' | 'video'
+  final String fileType;
   final DateTime uploadedAt;
 
   CourseFile({
@@ -170,7 +170,6 @@ class Lesson {
   factory Lesson.fromJson(Map<String, dynamic> map) => Lesson(
     lessonId: map['lesson_id'],
     courseId: map['course_id'],
-    // joined via .select('*, courses(title)')
     courseName: map['courses']?['title'] ?? '',
     title: map['title'] ?? '',
     description: map['description'] ?? '',
@@ -202,7 +201,6 @@ class Question {
   });
 
   factory Question.fromJson(Map<String, dynamic> map) => Question(
-    // assessment_questions uses question_id, final_questions uses final_question_id
     questionId: map['question_id'] ?? map['final_question_id'] ?? 0,
     questionDetail: map['question_detail'] ?? '',
     answerA: map['answer_a'] ?? '',
@@ -279,12 +277,12 @@ class FinalExam {
   );
 }
 
-// --- question form -----------------------------------------------------------
+// --- QuestionForm ------------------------------------------------------------
 class QuestionForm {
   String questionDetail = '';
   String answerA = '';
   String answerB = '';
   String answerC = '';
   String answerD = '';
-  String correctAnswer = ''; // 'A' | 'B' | 'C' | 'D'
+  String correctAnswer = '';
 }

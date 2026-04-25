@@ -1,4 +1,4 @@
-// lib/screens/create_assessment.dart
+// --- Create Assessment Screen ------------------------------------------------
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide User;
 import '../DB.dart';
@@ -22,15 +22,13 @@ class CreateAssessment extends StatefulWidget {
 class _CreateAssessmentState extends State<CreateAssessment> {
   final supabase = Supabase.instance.client;
 
-  int _step = 1; // 1 = basic info, 2 = questions, 3 = preview
+  int _step = 1;
   bool _isLoading = false;
 
-  // Step 1
   final _titleController = TextEditingController();
   final _passingMarkController = TextEditingController(text: '70');
   DateTime? _deadline;
 
-  // Step 2 - list of question form holders
   final List<QuestionForm> _questions = [QuestionForm()];
 
   void snackbar(String s, [Color? c]) {
@@ -84,7 +82,6 @@ class _CreateAssessmentState extends State<CreateAssessment> {
 
     try {
       if (widget.isFinalExam) {
-        // Insert final_exams
         final res = await supabase.from('final_exams').insert({
           'course_id': widget.courseId,
           'title': _titleController.text.trim(),
@@ -106,7 +103,6 @@ class _CreateAssessmentState extends State<CreateAssessment> {
           });
         }
       } else {
-        // Insert assessments
         final res = await supabase.from('assessments').insert({
           'course_id': widget.courseId,
           'title': _titleController.text.trim(),
@@ -148,7 +144,6 @@ class _CreateAssessmentState extends State<CreateAssessment> {
       ),
       body: Column(
         children: [
-          // Step indicator
           Padding(
             padding: const EdgeInsets.all(16),
             child: Row(
@@ -176,7 +171,6 @@ class _CreateAssessmentState extends State<CreateAssessment> {
               }),
             ),
           ),
-
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -188,7 +182,6 @@ class _CreateAssessmentState extends State<CreateAssessment> {
     );
   }
 
-  // ── Step 1: Basic Info ────────────────────────────────────────────────────
   Widget _buildStep1() => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
@@ -234,7 +227,6 @@ class _CreateAssessmentState extends State<CreateAssessment> {
     ],
   );
 
-  // ── Step 2: Questions ─────────────────────────────────────────────────────
   Widget _buildStep2() => Column(
     children: [
       ..._questions.asMap().entries.map((e) => _QuestionCard(
@@ -268,7 +260,6 @@ class _CreateAssessmentState extends State<CreateAssessment> {
     ],
   );
 
-  // ── Step 3: Preview ───────────────────────────────────────────────────────
   Widget _buildStep3() => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
@@ -351,7 +342,6 @@ class _PreviewRow extends StatelessWidget {
   );
 }
 
-// ─── Question Card (stateful so radio updates work) ───────────────────────────
 class _QuestionCard extends StatefulWidget {
   final int index;
   final QuestionForm form;
@@ -387,14 +377,6 @@ class _QuestionCardState extends State<_QuestionCard> {
     _qCtrl.dispose(); _aCtrl.dispose(); _bCtrl.dispose();
     _cCtrl.dispose(); _dCtrl.dispose();
     super.dispose();
-  }
-
-  void _save() {
-    widget.form.questionDetail = _qCtrl.text.trim();
-    widget.form.answerA = _aCtrl.text.trim();
-    widget.form.answerB = _bCtrl.text.trim();
-    widget.form.answerC = _cCtrl.text.trim();
-    widget.form.answerD = _dCtrl.text.trim();
   }
 
   @override

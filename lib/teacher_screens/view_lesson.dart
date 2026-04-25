@@ -1,4 +1,4 @@
-// lib/screens/view_lesson.dart
+// --- View Lessons Screen -----------------------------------------------------
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide User;
 import 'package:intl/intl.dart';
@@ -17,7 +17,6 @@ class _ViewLessonState extends State<ViewLesson> {
   final supabase = Supabase.instance.client;
 
   bool _isLoading = false;
-  // List of { 'course': Course, 'lessons': List<Lesson> }
   List<Map<String, dynamic>> _courseLessons = [];
 
   void snackbar(String s, [Color? c]) {
@@ -36,7 +35,6 @@ class _ViewLessonState extends State<ViewLesson> {
     setState(() => _isLoading = true);
 
     try {
-      // Only approved courses
       final coursesRes = await supabase
           .from('courses')
           .select('*, categories(name)')
@@ -118,7 +116,6 @@ class _ViewLessonState extends State<ViewLesson> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Course header
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: const BoxDecoration(
@@ -158,8 +155,6 @@ class _ViewLessonState extends State<ViewLesson> {
                       ],
                     ),
                   ),
-
-                  // Lessons
                   if (lessons.isEmpty)
                     const Padding(
                       padding: EdgeInsets.all(16),

@@ -1,6 +1,7 @@
+// --- Main Entry Point --------------------------------------------------------
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'screens/teacher_login.dart';
+import 'teacher_screens/teacher_login.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();

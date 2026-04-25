@@ -1,3 +1,4 @@
+// --- Course Detail Screen ----------------------------------------------------
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide User;
 import 'package:intl/intl.dart';
@@ -25,7 +26,6 @@ class _CourseDetailState extends State<CourseDetail> {
   List<FinalExam> _finalExams = [];
   List<Category> _categories = [];
 
-  // Edit info controllers
   bool _editingInfo = false;
   final _titleController = TextEditingController();
   final _descController = TextEditingController();
@@ -95,7 +95,6 @@ class _CourseDetailState extends State<CourseDetail> {
       final List<CourseFile> files = (filesRes as List)
           .map((m) => CourseFile.fromJson(m as Map<String, dynamic>))
           .toList();
-      // Rebuild lesson with files (since files is final, create new)
       lessons.add(Lesson(
         lessonId: lesson.lessonId,
         courseId: lesson.courseId,
@@ -221,7 +220,6 @@ class _CourseDetailState extends State<CourseDetail> {
     if (confirm != true) return;
     try {
       setState(() => _isLoading = true);
-      // Delete course files first
       await supabase.from('course_files').delete().eq('lesson_id', lesson.lessonId);
       await supabase.from('lessons').delete().eq('lesson_id', lesson.lessonId);
       snackbar('Lesson deleted.');
@@ -317,7 +315,6 @@ class _CourseDetailState extends State<CourseDetail> {
     );
   }
 
-  // ── Course Info card ─────────────────────────────────────────────────────
   Widget _buildCourseInfo() {
     final c = _course!;
     return Card(
@@ -380,7 +377,6 @@ class _CourseDetailState extends State<CourseDetail> {
     );
   }
 
-  // ── Lessons section ───────────────────────────────────────────────────────
   Widget _buildLessonsSection() => Card(
     margin: const EdgeInsets.only(bottom: 16),
     child: Padding(
@@ -417,7 +413,6 @@ class _CourseDetailState extends State<CourseDetail> {
     ),
   );
 
-  // ── Assessments section ───────────────────────────────────────────────────
   Widget _buildAssessmentsSection() => Card(
     margin: const EdgeInsets.only(bottom: 16),
     child: Padding(
@@ -456,7 +451,6 @@ class _CourseDetailState extends State<CourseDetail> {
     ),
   );
 
-  // ── Final Exams section ───────────────────────────────────────────────────
   Widget _buildFinalExamsSection() => Card(
     margin: const EdgeInsets.only(bottom: 16),
     child: Padding(
@@ -495,8 +489,6 @@ class _CourseDetailState extends State<CourseDetail> {
     ),
   );
 }
-
-// ─── Local widgets ────────────────────────────────────────────────────────────
 
 class _InfoRow extends StatelessWidget {
   final String label, value;

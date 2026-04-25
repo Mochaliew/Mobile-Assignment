@@ -1,4 +1,4 @@
-// lib/screens/view_assessment.dart
+// --- View Assessment Screen --------------------------------------------------
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../DB.dart';
@@ -11,7 +11,6 @@ class ViewAssessment extends StatelessWidget {
       : assert(assessment != null || finalExam != null,
   'Must provide either assessment or finalExam');
 
-  // Helpers to unify access
   bool get _isFinal => finalExam != null;
   String get _title => _isFinal ? finalExam!.title : assessment!.title;
   int get _totalMarks => _isFinal ? finalExam!.totalMarks : assessment!.totalMarks;
@@ -32,7 +31,6 @@ class ViewAssessment extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── Summary card ────────────────────────────────────────────
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(16),
@@ -67,14 +65,11 @@ class ViewAssessment extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-
-            // ── Questions ───────────────────────────────────────────────
             Text(
               'Questions (${_questions.length})',
               style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
-
             _questions.isEmpty
                 ? const Card(
               child: Padding(
@@ -159,7 +154,6 @@ class ViewAssessment extends StatelessWidget {
                 );
               }).toList(),
             ),
-
             const SizedBox(height: 8),
             OutlinedButton.icon(
               onPressed: () => Navigator.pop(context),

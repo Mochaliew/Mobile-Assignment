@@ -1,3 +1,4 @@
+// --- Create Course Screen ----------------------------------------------------
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide User;
 import '../DB.dart';
@@ -125,7 +126,7 @@ class _CreateCourseState extends State<CreateCourse> {
             _isLoading && _categories.isEmpty
                 ? const LinearProgressIndicator()
                 : DropdownButtonFormField<int>(
-                    value: _selectedCategoryId,
+                    initialValue: _selectedCategoryId,
                     decoration: const InputDecoration(
                       labelText: 'Category',
                       border: OutlineInputBorder(),

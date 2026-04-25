@@ -1,32 +1,45 @@
-// lib/screens/create_lesson.dart
+// --- Edit Lesson Screen ------------------------------------------------------
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide User;
+import 'package:intl/intl.dart';
 import '../DB.dart';
 
-class CreateLesson extends StatefulWidget {
-  final int courseId;
+class EditLesson extends StatefulWidget {
+  final Lesson lesson;
   final String courseName;
-  const CreateLesson({super.key, required this.courseId, required this.courseName});
+  const EditLesson({super.key, required this.lesson, required this.courseName});
 
   @override
-  State<CreateLesson> createState() => _CreateLessonState();
+  State<EditLesson> createState() => _EditLessonState();
 }
 
-class _CreateLessonState extends State<CreateLesson> {
+class _EditLessonState extends State<EditLesson> {
   final supabase = Supabase.instance.client;
 
-  final _titleController = TextEditingController();
-  final _descController = TextEditingController();
-  final _meetController = TextEditingController();
+  late TextEditingController _titleController;
+  late TextEditingController _descController;
+  late TextEditingController _meetController;
   bool _isLoading = false;
-  String _lessonType = '';
   DateTime? _date;
   TimeOfDay? _time;
+  String _newFileType = '';
 
   void snackbar(String s, [Color? c]) {
     ScaffoldMessenger.of(context)
       ..clearSnackBars()
       ..showSnackBar(SnackBar(content: Text(s), backgroundColor: c));
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _titleController = TextEditingController(text: widget.lesson.title);
+    _descController = TextEditingController(text: widget.lesson.description);
+    _meetController = TextEditingController(text: widget.lesson.meetLink);
+    if (widget.lesson.scheduleDate != null) {
+      _date = widget.lesson.scheduleDate;
+      _time = TimeOfDay.fromDateTime(widget.lesson.scheduleDate!);
+    }
   }
 
   @override
@@ -40,33 +53,24 @@ class _CreateLessonState extends State<CreateLesson> {
   Future<void> _pickDate() async {
     final d = await showDatePicker(
       context: context,
-      initialDate: DateTime.now(),
-      firstDate: DateTime.now(),
+      initialDate: _date ?? DateTime.now(),
+      firstDate: DateTime.now().subtract(const Duration(days: 365)),
       lastDate: DateTime.now().add(const Duration(days: 365)),
     );
     if (d != null) setState(() => _date = d);
   }
 
   Future<void> _pickTime() async {
-    final t = await showTimePicker(context: context, initialTime: TimeOfDay.now());
+    final t = await showTimePicker(context: context, initialTime: _time ?? TimeOfDay.now());
     if (t != null) setState(() => _time = t);
   }
 
-  Future<void> _submit() async {
+  Future<void> _save() async {
     final title = _titleController.text.trim();
     if (title.isEmpty) {
       snackbar('Title is required.', Colors.red);
       return;
     }
-    if (_lessonType.isEmpty) {
-      snackbar('Please select a lesson type.', Colors.red);
-      return;
-    }
-    if (_lessonType == 'online' && _meetController.text.trim().isEmpty) {
-      snackbar('Meeting link is required for online lessons.', Colors.red);
-      return;
-    }
-
     setState(() => _isLoading = true);
 
     DateTime? schedule;
@@ -78,18 +82,17 @@ class _CreateLessonState extends State<CreateLesson> {
     }
 
     try {
-      await supabase.from('lessons').insert({
-        'course_id': widget.courseId,
+      await supabase.from('lessons').update({
         'title': title,
         'description': _descController.text.trim(),
-        'meet_link': _lessonType == 'online' ? _meetController.text.trim() : '',
+        'meet_link': _meetController.text.trim(),
         'schedule_date': schedule?.toIso8601String(),
-      });
+      }).eq('lesson_id', widget.lesson.lessonId);
 
-      snackbar('Lesson created successfully.');
+      snackbar('Lesson updated successfully.');
       if (mounted) Navigator.pop(context);
     } catch (e) {
-      snackbar('Error creating lesson: $e', Colors.red);
+      snackbar('Error updating lesson: $e', Colors.red);
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -99,7 +102,7 @@ class _CreateLessonState extends State<CreateLesson> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Create New Lesson'),
+        title: const Text('Edit Lesson'),
         backgroundColor: const Color(0xFF5B6FF5),
         foregroundColor: Colors.white,
       ),
@@ -108,7 +111,6 @@ class _CreateLessonState extends State<CreateLesson> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Course name hint
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(8)),
@@ -124,7 +126,17 @@ class _CreateLessonState extends State<CreateLesson> {
             TextField(
               controller: _descController,
               maxLines: 4,
-              decoration: const InputDecoration(labelText: 'Description (Optional)', border: OutlineInputBorder()),
+              decoration: const InputDecoration(labelText: 'Description', border: OutlineInputBorder()),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _meetController,
+              decoration: const InputDecoration(
+                labelText: 'Meeting Link',
+                hintText: 'https://meet.google.com/xxx-xxxx-xxx',
+                prefixIcon: Icon(Icons.link),
+                border: OutlineInputBorder(),
+              ),
             ),
             const SizedBox(height: 12),
             Row(children: [
@@ -132,7 +144,7 @@ class _CreateLessonState extends State<CreateLesson> {
                 child: OutlinedButton.icon(
                   onPressed: _pickDate,
                   icon: const Icon(Icons.calendar_today, size: 16),
-                  label: Text(_date == null ? 'Select Date' : '${_date!.day}/${_date!.month}/${_date!.year}'),
+                  label: Text(_date == null ? 'Select Date' : DateFormat('dd/MM/yyyy').format(_date!)),
                 ),
               ),
               const SizedBox(width: 8),
@@ -144,37 +156,37 @@ class _CreateLessonState extends State<CreateLesson> {
                 ),
               ),
             ]),
+            if (widget.lesson.files.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              const Text('Existing Files', style: TextStyle(fontWeight: FontWeight.w600)),
+              const SizedBox(height: 8),
+              ...widget.lesson.files.map((f) => Card(
+                child: ListTile(
+                  leading: Icon(f.fileType == 'pdf' ? Icons.picture_as_pdf : Icons.video_file,
+                      color: f.fileType == 'pdf' ? Colors.red : Colors.blue),
+                  title: Text(f.fileType.toUpperCase()),
+                  subtitle: Text('Uploaded ${DateFormat('MMM dd, yyyy').format(f.uploadedAt)}'),
+                ),
+              )),
+            ],
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
-              value: _lessonType.isEmpty ? null : _lessonType,
-              decoration: const InputDecoration(labelText: 'Lesson Type', border: OutlineInputBorder()),
+              initialValue: _newFileType.isEmpty ? null : _newFileType,
+              decoration: const InputDecoration(
+                  labelText: 'Add New File (Optional)', border: OutlineInputBorder()),
               items: const [
-                DropdownMenuItem(value: 'online', child: Text('Online Meeting (Google Meet/Zoom)')),
-                DropdownMenuItem(value: 'materials', child: Text('Upload Materials (PDF/Video)')),
+                DropdownMenuItem(value: 'pdf', child: Text('PDF Document')),
+                DropdownMenuItem(value: 'video', child: Text('Video File')),
               ],
-              onChanged: (v) => setState(() => _lessonType = v ?? ''),
+              onChanged: (v) => setState(() => _newFileType = v ?? ''),
             ),
-            if (_lessonType == 'online') ...[
-              const SizedBox(height: 12),
-              TextField(
-                controller: _meetController,
-                decoration: const InputDecoration(
-                  labelText: 'Meeting Link',
-                  hintText: 'https://meet.google.com/xxx-xxxx-xxx',
-                  prefixIcon: Icon(Icons.link),
-                  border: OutlineInputBorder(),
-                ),
-              ),
-            ],
-            if (_lessonType == 'materials') ...[
-              const SizedBox(height: 12),
+            if (_newFileType.isNotEmpty) ...[
+              const SizedBox(height: 8),
               OutlinedButton.icon(
                 onPressed: () => snackbar('Add file_picker package to enable file uploads.'),
                 icon: const Icon(Icons.upload_file),
-                label: const Text('Choose File (PDF or Video)'),
+                label: Text(_newFileType == 'pdf' ? 'Choose PDF (max 50MB)' : 'Choose Video (max 500MB)'),
               ),
-              const SizedBox(height: 4),
-              const Text('Max: PDF 50MB, Video 500MB', style: TextStyle(color: Colors.grey, fontSize: 12)),
             ],
             const SizedBox(height: 24),
             Row(children: [
@@ -185,7 +197,7 @@ class _CreateLessonState extends State<CreateLesson> {
               Expanded(
                 flex: 2,
                 child: ElevatedButton(
-                  onPressed: _isLoading ? null : _submit,
+                  onPressed: _isLoading ? null : _save,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF5B6FF5),
                     foregroundColor: Colors.white,
@@ -193,7 +205,7 @@ class _CreateLessonState extends State<CreateLesson> {
                   ),
                   child: _isLoading
                       ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                      : const Text('Create Lesson'),
+                      : const Text('Save Changes'),
                 ),
               ),
             ]),
