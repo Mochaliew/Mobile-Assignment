@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../DB.dart';
 import 'admin_login.dart';
 import 'course_approval.dart';
+import 'manage_students.dart';
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -198,7 +199,12 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 icon: Icons.people,
                 title: 'Manage Students',
                 subtitle: 'Manage students, enrollments and accounts',
-                onTap: () {},
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const ManageStudents()),
+                  );
+                },
               ),
 
               _MenuCard(
