@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../DB.dart';
 import 'admin_login.dart';
+import 'course_approval.dart';
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -15,12 +16,12 @@ class _AdminDashboardState extends State<AdminDashboard> {
   final supabase = Supabase.instance.client;
 
   bool _isLoading = false;
-
-  int totalStudents = 0;
   int totalTeachers = 0;
+  int totalStudents = 0;
   int totalCourses = 0;
   int pendingCourses = 0;
-
+  int approvedCourses = 0;
+  int rejectedCourses = 0;
   List<dynamic> latestLogs = [];
 
   @override
@@ -33,16 +34,21 @@ class _AdminDashboardState extends State<AdminDashboard> {
     setState(() => _isLoading = true);
 
     try {
-      final students = await supabase.from('students').select();
       final teachers = await supabase.from('teachers').select();
+      final students = await supabase.from('students').select();
       final courses = await supabase.from('courses').select();
-
       final pending = await supabase
           .from('courses')
           .select()
           .eq('is_approved', false)
           .eq('is_rejected', false);
-
+      final approved = await supabase
+          .from('courses')
+          .select()
+          .eq('is_approved', true)
+          .eq('is_rejected', false);
+      final rejected =
+      await supabase.from('courses').select().eq('is_rejected', true);
       final logs = await supabase
           .from('audit_logs')
           .select()
@@ -50,17 +56,25 @@ class _AdminDashboardState extends State<AdminDashboard> {
           .limit(5);
 
       setState(() {
-        totalStudents = students.length;
         totalTeachers = teachers.length;
+        totalStudents = students.length;
         totalCourses = courses.length;
         pendingCourses = pending.length;
+        approvedCourses = approved.length;
+        rejectedCourses = rejected.length;
         latestLogs = logs;
       });
     } catch (e) {
-      print(e);
+      showMessage('Error loading dashboard: $e');
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  void showMessage(String message) {
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(SnackBar(content: Text(message)));
   }
 
   void logout() {
@@ -74,12 +88,14 @@ class _AdminDashboardState extends State<AdminDashboard> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFF6F7F9),
       appBar: AppBar(
-        title: const Text("Admin Dashboard"),
-        backgroundColor: const Color(0xFF5B6FF5),
+        title: const Text('Admin Dashboard'),
+        backgroundColor: const Color(0xFF212529),
+        foregroundColor: Colors.white,
         actions: [
-          IconButton(icon: const Icon(Icons.refresh), onPressed: fetchDashboard),
-          IconButton(icon: const Icon(Icons.logout), onPressed: logout),
+          IconButton(onPressed: fetchDashboard, icon: const Icon(Icons.refresh)),
+          IconButton(onPressed: logout, icon: const Icon(Icons.logout)),
         ],
       ),
       body: _isLoading
@@ -87,14 +103,22 @@ class _AdminDashboardState extends State<AdminDashboard> {
           : RefreshIndicator(
         onRefresh: fetchDashboard,
         child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                "Welcome, ${AdminSession.adminName ?? ''}",
+                'Welcome, ${AdminSession.adminName ?? 'Admin'}',
                 style: const TextStyle(
-                    fontSize: 18, fontWeight: FontWeight.bold),
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Mobile Admin Module',
+                style: TextStyle(color: Colors.grey),
               ),
               const SizedBox(height: 20),
 
@@ -104,27 +128,107 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 crossAxisCount: 2,
                 crossAxisSpacing: 12,
                 mainAxisSpacing: 12,
-                childAspectRatio: 1.6,
+                childAspectRatio: 1.55,
                 children: [
-                  statCard("Students", totalStudents.toString(), Colors.blue),
-                  statCard("Teachers", totalTeachers.toString(), Colors.green),
-                  statCard("Courses", totalCourses.toString(), Colors.orange),
-                  statCard("Pending", pendingCourses.toString(), Colors.red),
+                  _StatCard('Total Teachers', totalTeachers, Colors.blue),
+                  _StatCard('Total Students', totalStudents, Colors.green),
+                  _StatCard('Total Courses', totalCourses, Colors.orange),
+                  _StatCard('Pending Courses', pendingCourses, Colors.amber),
                 ],
               ),
 
-              const SizedBox(height: 20),
+              const SizedBox(height: 24),
+              const Text(
+                'Course Status',
+                style:
+                TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
 
-              const Text("Latest Activities",
-                  style:
-                  TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              Row(
+                children: [
+                  Expanded(
+                    child: _MiniStatusCard(
+                      title: 'Approved',
+                      value: approvedCourses,
+                      color: Colors.green,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _MiniStatusCard(
+                      title: 'Rejected',
+                      value: rejectedCourses,
+                      color: Colors.red,
+                    ),
+                  ),
+                ],
+              ),
 
-              const SizedBox(height: 10),
+              const SizedBox(height: 24),
+              const Text(
+                'Admin Functions',
+                style:
+                TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+
+              _MenuCard(
+                icon: Icons.school,
+                title: 'Manage Courses',
+                subtitle: 'Approve, publish and monitor courses',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const CourseApproval(),
+                    ),
+                  ).then((_) => fetchDashboard());
+                },
+              ),
+
+              _MenuCard(
+                icon: Icons.category,
+                title: 'Manage Categories',
+                subtitle: 'Create, edit, delete and restore categories',
+                onTap: () {},
+              ),
+
+              _MenuCard(
+                icon: Icons.people,
+                title: 'Manage Students',
+                subtitle: 'Manage students, enrollments and accounts',
+                onTap: () {},
+              ),
+
+              _MenuCard(
+                icon: Icons.settings,
+                title: 'System Settings',
+                subtitle: 'Platform branding, email and storage settings',
+                onTap: () {},
+              ),
+
+              const SizedBox(height: 24),
+              const Text(
+                'Latest Activities',
+                style:
+                TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
 
               Card(
-                child: Column(
+                child: latestLogs.isEmpty
+                    ? const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Text(
+                    'No recent activities.',
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                )
+                    : Column(
                   children: latestLogs.map((log) {
                     return ListTile(
+                      leading: const Icon(Icons.history),
                       title: Text(log['action'] ?? ''),
                       subtitle: Text(log['timestamp'] ?? ''),
                     );
@@ -137,23 +241,107 @@ class _AdminDashboardState extends State<AdminDashboard> {
       ),
     );
   }
+}
 
-  Widget statCard(String title, String value, Color color) {
+class _StatCard extends StatelessWidget {
+  final String title;
+  final int value;
+  final Color color;
+
+  const _StatCard(this.title, this.value, this.color);
+
+  @override
+  Widget build(BuildContext context) {
     return Card(
+      elevation: 1.5,
+      shape: RoundedRectangleBorder(
+        side: BorderSide(color: color, width: 1),
+        borderRadius: BorderRadius.circular(12),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(value,
-                style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: color)),
-            const SizedBox(height: 5),
-            Text(title),
+            Text(
+              title,
+              style: TextStyle(color: color, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              value.toString(),
+              style: const TextStyle(
+                fontSize: 30,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _MiniStatusCard extends StatelessWidget {
+  final String title;
+  final int value;
+  final Color color;
+
+  const _MiniStatusCard({
+    required this.title,
+    required this.value,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 1.5,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Text(title),
+            const SizedBox(height: 6),
+            Text(
+              value.toString(),
+              style: TextStyle(
+                fontSize: 26,
+                color: color,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MenuCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  const _MenuCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: ListTile(
+        leading: Icon(icon, color: const Color(0xFF212529)),
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+        subtitle: Text(subtitle),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: onTap,
       ),
     );
   }
