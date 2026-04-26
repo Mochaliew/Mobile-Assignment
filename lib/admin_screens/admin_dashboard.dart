@@ -10,6 +10,8 @@ import 'transactions.dart';
 import 'system_settings.dart';
 import 'audit_logs.dart';
 import 'manage_teachers.dart';
+import 'role_permission.dart';
+import 'enrollment_management.dart';
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -261,6 +263,30 @@ class _AdminDashboardState extends State<AdminDashboard> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(builder: (_) => const AuditLogsScreen()),
+                  );
+                },
+              ),
+
+              _MenuCard(
+                icon: Icons.security,
+                title: 'Role & Permission',
+                subtitle: 'View access rights for each user role',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const RolePermissionScreen()),
+                  );
+                },
+              ),
+
+              _MenuCard(
+                icon: Icons.assignment,
+                title: 'Enrollment Management',
+                subtitle: 'View and filter course enrollments',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const EnrollmentManagement()),
                   );
                 },
               ),
