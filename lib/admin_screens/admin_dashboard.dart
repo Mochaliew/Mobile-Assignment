@@ -5,6 +5,8 @@ import '../DB.dart';
 import 'admin_login.dart';
 import 'course_approval.dart';
 import 'manage_students.dart';
+import 'category_management.dart';
+import 'transactions.dart';
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -192,7 +194,12 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 icon: Icons.category,
                 title: 'Manage Categories',
                 subtitle: 'Create, edit, delete and restore categories',
-                onTap: () {},
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const CategoryManagement()),
+                  );
+                },
               ),
 
               _MenuCard(
@@ -212,6 +219,18 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 title: 'System Settings',
                 subtitle: 'Platform branding, email and storage settings',
                 onTap: () {},
+              ),
+
+              _MenuCard(
+                icon: Icons.payment,
+                title: 'Transactions',
+                subtitle: 'View student payments and enrollments',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const TransactionsScreen()),
+                  );
+                },
               ),
 
               const SizedBox(height: 24),
