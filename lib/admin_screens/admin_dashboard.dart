@@ -9,6 +9,7 @@ import 'category_management.dart';
 import 'transactions.dart';
 import 'system_settings.dart';
 import 'audit_logs.dart';
+import 'manage_teachers.dart';
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -212,6 +213,18 @@ class _AdminDashboardState extends State<AdminDashboard> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(builder: (_) => const ManageStudents()),
+                  );
+                },
+              ),
+
+              _MenuCard(
+                icon: Icons.person,
+                title: 'Manage Teachers',
+                subtitle: 'Manage teacher accounts and status',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const ManageTeachers()),
                   );
                 },
               ),
