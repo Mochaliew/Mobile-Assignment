@@ -7,6 +7,8 @@ import 'course_approval.dart';
 import 'manage_students.dart';
 import 'category_management.dart';
 import 'transactions.dart';
+import 'system_settings.dart';
+import 'audit_logs.dart';
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -218,7 +220,12 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 icon: Icons.settings,
                 title: 'System Settings',
                 subtitle: 'Platform branding, email and storage settings',
-                onTap: () {},
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const SystemSettingsScreen()),
+                  );
+                },
               ),
 
               _MenuCard(
@@ -229,6 +236,18 @@ class _AdminDashboardState extends State<AdminDashboard> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(builder: (_) => const TransactionsScreen()),
+                  );
+                },
+              ),
+
+              _MenuCard(
+                icon: Icons.history,
+                title: 'Audit Logs',
+                subtitle: 'View latest system activities',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const AuditLogsScreen()),
                   );
                 },
               ),
