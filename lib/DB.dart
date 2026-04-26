@@ -286,3 +286,246 @@ class QuestionForm {
   String answerD = '';
   String correctAnswer = '';
 }
+
+// --- Admin Session -----------------------------------------------------------
+class AdminSession {
+  static int? adminId;
+  static int? userId;
+  static String? adminName;
+  static String? adminEmail;
+
+  static void clear() {
+    adminId = null;
+    userId = null;
+    adminName = null;
+    adminEmail = null;
+  }
+}
+
+// --- Admin -------------------------------------------------------------------
+class Admin {
+  final int adminId;
+  final int userId;
+  final User? user;
+
+  Admin({
+    required this.adminId,
+    required this.userId,
+    this.user,
+  });
+
+  factory Admin.fromJson(Map<String, dynamic> map) => Admin(
+    adminId: map['admin_id'],
+    userId: map['user_id'],
+    user: map['users'] != null ? User.fromJson(map['users']) : null,
+  );
+}
+
+// --- Student -----------------------------------------------------------------
+class Student {
+  final int studentId;
+  final int userId;
+  final String? className;
+  final DateTime enrollmentDate;
+  final User? user;
+
+  Student({
+    required this.studentId,
+    required this.userId,
+    this.className,
+    required this.enrollmentDate,
+    this.user,
+  });
+
+  factory Student.fromJson(Map<String, dynamic> map) => Student(
+    studentId: map['student_id'],
+    userId: map['user_id'],
+    className: map['class_name'],
+    enrollmentDate:
+    DateTime.tryParse(map['enrollment_date'] ?? '') ?? DateTime.now(),
+    user: map['users'] != null ? User.fromJson(map['users']) : null,
+  );
+}
+
+// --- Audit Log ---------------------------------------------------------------
+class AuditLog {
+  final int auditLogId;
+  final int? userId;
+  final String action;
+  final String? details;
+  final DateTime timestamp;
+
+  AuditLog({
+    required this.auditLogId,
+    this.userId,
+    required this.action,
+    this.details,
+    required this.timestamp,
+  });
+
+  factory AuditLog.fromJson(Map<String, dynamic> map) => AuditLog(
+    auditLogId: map['audit_log_id'],
+    userId: map['user_id'],
+    action: map['action'] ?? '',
+    details: map['details'],
+    timestamp: DateTime.tryParse(map['timestamp'] ?? '') ?? DateTime.now(),
+  );
+}
+
+// --- System Setting ----------------------------------------------------------
+class SystemSetting {
+  final int systemSettingId;
+  final String platformName;
+  final String? logoPath;
+  final String primaryColor;
+  final String? smtpHost;
+  final int smtpPort;
+  final String? senderEmail;
+  final bool enableEmailNotification;
+  final String storageType;
+  final int maxUploadSizeMB;
+  final String allowedFileTypes;
+  final String? certificateTemplatePath;
+
+  SystemSetting({
+    required this.systemSettingId,
+    required this.platformName,
+    this.logoPath,
+    required this.primaryColor,
+    this.smtpHost,
+    required this.smtpPort,
+    this.senderEmail,
+    required this.enableEmailNotification,
+    required this.storageType,
+    required this.maxUploadSizeMB,
+    required this.allowedFileTypes,
+    this.certificateTemplatePath,
+  });
+
+  factory SystemSetting.fromJson(Map<String, dynamic> map) => SystemSetting(
+    systemSettingId: map['system_setting_id'],
+    platformName: map['platform_name'] ?? 'RSD E-Learning',
+    logoPath: map['logo_path'],
+    primaryColor: map['primary_color'] ?? '#0d6efd',
+    smtpHost: map['smtp_host'],
+    smtpPort: map['smtp_port'] ?? 587,
+    senderEmail: map['sender_email'],
+    enableEmailNotification: map['enable_email_notification'] ?? true,
+    storageType: map['storage_type'] ?? 'Local',
+    maxUploadSizeMB: map['max_upload_size_mb'] ?? 50,
+    allowedFileTypes: map['allowed_file_types'] ?? '.pdf,.mp4,.docx',
+    certificateTemplatePath: map['certificate_template_path'],
+  );
+}
+
+// --- Enrollment --------------------------------------------------------------
+class Enrollment {
+  final int enrollmentId;
+  final int studentId;
+  final int courseId;
+  final DateTime enrolledAt;
+  final bool paymentStatus;
+  final String paymentMethod;
+  final double amountPaid;
+  final Student? student;
+  final Course? course;
+
+  Enrollment({
+    required this.enrollmentId,
+    required this.studentId,
+    required this.courseId,
+    required this.enrolledAt,
+    required this.paymentStatus,
+    required this.paymentMethod,
+    required this.amountPaid,
+    this.student,
+    this.course,
+  });
+
+  factory Enrollment.fromJson(Map<String, dynamic> map) => Enrollment(
+    enrollmentId: map['enrollment_id'],
+    studentId: map['student_id'],
+    courseId: map['course_id'],
+    enrolledAt: DateTime.tryParse(map['enrolled_at'] ?? '') ?? DateTime.now(),
+    paymentStatus: map['payment_status'] ?? false,
+    paymentMethod: map['payment_method'] ?? '',
+    amountPaid: (map['amount_paid'] ?? 0).toDouble(),
+    student:
+    map['students'] != null ? Student.fromJson(map['students']) : null,
+    course: map['courses'] != null ? Course.fromJson(map['courses']) : null,
+  );
+}
+
+// --- Promo Code --------------------------------------------------------------
+class PromoCode {
+  final int promoCodeId;
+  final String code;
+  final int discountPercent;
+  final DateTime startDate;
+  final DateTime expiryDate;
+  final bool isActive;
+  final int maxUsage;
+  final int usedCount;
+  final DateTime createdAt;
+
+  PromoCode({
+    required this.promoCodeId,
+    required this.code,
+    required this.discountPercent,
+    required this.startDate,
+    required this.expiryDate,
+    required this.isActive,
+    required this.maxUsage,
+    required this.usedCount,
+    required this.createdAt,
+  });
+
+  factory PromoCode.fromJson(Map<String, dynamic> map) => PromoCode(
+    promoCodeId: map['promo_code_id'],
+    code: map['code'] ?? '',
+    discountPercent: map['discount_percent'] ?? 0,
+    startDate: DateTime.tryParse(map['start_date'] ?? '') ?? DateTime.now(),
+    expiryDate: DateTime.tryParse(map['expiry_date'] ?? '') ?? DateTime.now(),
+    isActive: map['is_active'] ?? true,
+    maxUsage: map['max_usage'] ?? 100,
+    usedCount: map['used_count'] ?? 0,
+    createdAt: DateTime.tryParse(map['created_at'] ?? '') ?? DateTime.now(),
+  );
+}
+
+// --- Payment Transaction -----------------------------------------------------
+class PaymentTransaction {
+  final int paymentTransactionId;
+  final int studentId;
+  final int courseId;
+  final double amount;
+  final String paymentMethod;
+  final DateTime transactionDate;
+  final Student? student;
+  final Course? course;
+
+  PaymentTransaction({
+    required this.paymentTransactionId,
+    required this.studentId,
+    required this.courseId,
+    required this.amount,
+    required this.paymentMethod,
+    required this.transactionDate,
+    this.student,
+    this.course,
+  });
+
+  factory PaymentTransaction.fromJson(Map<String, dynamic> map) =>
+      PaymentTransaction(
+        paymentTransactionId: map['payment_transaction_id'],
+        studentId: map['student_id'],
+        courseId: map['course_id'],
+        amount: (map['amount'] ?? 0).toDouble(),
+        paymentMethod: map['payment_method'] ?? 'FakeGateway',
+        transactionDate:
+        DateTime.tryParse(map['transaction_date'] ?? '') ?? DateTime.now(),
+        student:
+        map['students'] != null ? Student.fromJson(map['students']) : null,
+        course: map['courses'] != null ? Course.fromJson(map['courses']) : null,
+      );
+}
