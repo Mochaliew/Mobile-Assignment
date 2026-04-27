@@ -19,6 +19,10 @@ class _StudentProfileState extends State<StudentProfile> {
   List<dynamic> _notes = [];
   List<dynamic> _activities = [];
 
+  String _name = '';
+  String _about = '';
+  final String _className = 'Class 9A';
+
   int? _editingIndex; // null = not editing, -1 = adding new
   final TextEditingController _editController = TextEditingController();
 
@@ -44,6 +48,12 @@ class _StudentProfileState extends State<StudentProfile> {
     }
 
     try {
+      final studentData = await supabase
+          .from('students')
+          .select('*, users(full_name)')
+          .eq('student_id', studentId)
+          .maybeSingle();
+
       final notesData = await supabase
           .from('student_notes')
           .select('*')
@@ -57,6 +67,11 @@ class _StudentProfileState extends State<StudentProfile> {
 
       if (mounted) {
         setState(() {
+          _name =
+              studentData?['users']?['full_name'] ??
+              StudentSession.studentName ??
+              'Student';
+          _about = studentData?['about'] ?? '';
           _notes = notesData;
           _activities = activitiesData;
           _isLoading = false;
@@ -346,28 +361,31 @@ class _StudentProfileState extends State<StudentProfile> {
                   ),
                 ],
               ),
-              child: const Row(
+              child: Row(
                 children: [
-                  CircleAvatar(
+                  const CircleAvatar(
                     radius: 30,
                     backgroundColor: Color(0xFFE0E0E0),
                     child: Icon(Icons.person, size: 32, color: Colors.grey),
                   ),
-                  SizedBox(width: 16),
+                  const SizedBox(width: 16),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Kate Malone',
-                        style: TextStyle(
+                        _name,
+                        style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      SizedBox(height: 4),
+                      const SizedBox(height: 4),
                       Text(
-                        'Class 9A',
-                        style: TextStyle(color: Colors.grey, fontSize: 14),
+                        _className,
+                        style: const TextStyle(
+                          color: Colors.grey,
+                          fontSize: 14,
+                        ),
                       ),
                     ],
                   ),
@@ -396,17 +414,17 @@ class _StudentProfileState extends State<StudentProfile> {
             ),
           ],
         ),
-        child: const Column(
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
+            const Text(
               'About',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
-            SizedBox(height: 10),
+            const SizedBox(height: 10),
             Text(
-              'I am interested in math and biology. I like to solve complex problems and participate in school Olympiads.',
-              style: TextStyle(
+              _about.isNotEmpty ? _about : 'No about information yet.',
+              style: const TextStyle(
                 fontSize: 15,
                 color: Colors.black87,
                 height: 1.5,

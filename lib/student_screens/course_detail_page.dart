@@ -119,10 +119,15 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
     Navigator.pop(context, true);
   }
 
-  String _fmtDate(String? iso) {
-    if (iso == null) return 'TBD';
-    final d = DateTime.tryParse(iso);
-    if (d == null) return iso;
+  String _fmtDate(dynamic value) {
+    if (value == null) return 'TBD';
+    DateTime? d;
+    if (value is DateTime) {
+      d = value;
+    } else if (value is String) {
+      d = DateTime.tryParse(value);
+    }
+    if (d == null) return value.toString();
     final months = [
       'Jan',
       'Feb',
@@ -233,8 +238,12 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
                               bottom: index < _lessons.length - 1 ? 10 : 0,
                             ),
                             child: _lessonTile(
-                              lesson['title'] ?? 'Lesson',
-                              lesson['description'] ?? '',
+                              title: lesson['title'] ?? 'Lesson',
+                              subtitle: lesson['description'] ?? '',
+                              meetLink: lesson['meet_link'],
+                              scheduleDate: lesson['schedule_date'] != null
+                                  ? DateTime.tryParse(lesson['schedule_date'])
+                                  : null,
                             ),
                           );
                         }),
@@ -363,7 +372,16 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
     );
   }
 
-  Widget _lessonTile(String title, String subtitle) {
+  Widget _lessonTile({
+    required String title,
+    required String subtitle,
+    String? meetLink,
+    DateTime? scheduleDate,
+  }) {
+    final now = DateTime.now();
+    final isPast = scheduleDate != null && scheduleDate.isBefore(now);
+    final dateText = scheduleDate != null ? _fmtDate(scheduleDate) : 'TBD';
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -391,6 +409,47 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
               style: const TextStyle(color: Colors.grey, fontSize: 14),
             ),
           ],
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              if (meetLink != null && meetLink.isNotEmpty)
+                ElevatedButton.icon(
+                  onPressed: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Opening GMeet: $meetLink')),
+                    );
+                  },
+                  icon: const Icon(Icons.video_call, size: 18),
+                  label: const Text('Go to GMeet'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF5B6FF5),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    textStyle: const TextStyle(fontSize: 13),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                ),
+              if (meetLink != null && meetLink.isNotEmpty)
+                const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  isPast
+                      ? 'Class has ended and was conducted on $dateText'
+                      : 'Scheduled: $dateText',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: isPast ? Colors.grey : const Color(0xFF5B6FF5),
+                    fontWeight: isPast ? FontWeight.normal : FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );

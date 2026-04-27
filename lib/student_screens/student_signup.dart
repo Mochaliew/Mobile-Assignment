@@ -1,21 +1,22 @@
-// --- Student Login Screen ----------------------------------------------------
+// --- Student Sign Up Screen --------------------------------------------------
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart' hide User;
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../DB.dart';
-import '../teacher_screens/teacher_login.dart';
+import 'student_login.dart';
 import 'student_main_shell.dart';
-import 'student_signup.dart';
 
-class StudentLogin extends StatefulWidget {
-  const StudentLogin({super.key});
+class StudentSignUp extends StatefulWidget {
+  const StudentSignUp({super.key});
 
   @override
-  State<StudentLogin> createState() => _StudentLoginState();
+  State<StudentSignUp> createState() => _StudentSignUpState();
 }
 
-class _StudentLoginState extends State<StudentLogin> {
+class _StudentSignUpState extends State<StudentSignUp> {
   final supabase = Supabase.instance.client;
 
+  final _nameController = TextEditingController();
+  final _aboutController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isLoading = false;
@@ -29,62 +30,79 @@ class _StudentLoginState extends State<StudentLogin> {
 
   @override
   void dispose() {
+    _nameController.dispose();
+    _aboutController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
 
-  Future<void> _login() async {
+  Future<void> _signUp() async {
+    final name = _nameController.text.trim();
+    final about = _aboutController.text.trim();
     final email = _emailController.text.trim();
     final password = _passwordController.text;
 
-    if (email.isEmpty || password.isEmpty) {
-      snackbar('Please enter email and password.', Colors.red);
+    if (name.isEmpty || email.isEmpty || password.isEmpty) {
+      snackbar('Please fill in name, email and password.', Colors.red);
       return;
     }
 
     setState(() => _isLoading = true);
 
     try {
+      // Check if email already exists
+      final existing = await supabase
+          .from('users')
+          .select('id')
+          .eq('email', email)
+          .maybeSingle();
+
+      if (existing != null) {
+        snackbar('Email already registered. Please sign in.', Colors.red);
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      // Insert user
       final userResponse = await supabase
           .from('users')
+          .insert({
+            'full_name': name,
+            'email': email,
+            'password_hash': password,
+            'role': 'Student',
+            'created_at': DateTime.now().toIso8601String(),
+          })
           .select()
-          .eq('email', email)
-          .eq('role', 'Student')
-          .maybeSingle();
+          .single();
 
-      if (userResponse == null) {
-        snackbar('No student found with the given email.', Colors.red);
-        return;
-      }
+      final userId = userResponse['id'] as int;
 
-      if (userResponse['password_hash'] != password) {
-        snackbar('Invalid email / password.', Colors.red);
-        return;
-      }
-
+      // Insert student profile
       final studentResponse = await supabase
           .from('students')
+          .insert({
+            'user_id': userId,
+            'enrollment_date': DateTime.now().toIso8601String(),
+            'about': about.isNotEmpty ? about : null,
+          })
           .select()
-          .eq('user_id', userResponse['id'])
-          .maybeSingle();
+          .single();
 
-      if (studentResponse == null) {
-        snackbar('Student profile not found.', Colors.red);
-        return;
-      }
-
-      StudentSession.studentId = studentResponse['student_id'];
-      StudentSession.studentName = userResponse['full_name'] ?? '';
-      StudentSession.studentEmail = userResponse['email'] ?? '';
+      // Auto-login
+      StudentSession.studentId = studentResponse['student_id'] as int;
+      StudentSession.studentName = name;
+      StudentSession.studentEmail = email;
 
       if (!mounted) return;
-      Navigator.pushReplacement(
+      Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (_) => const StudentMainShell()),
+        (route) => false,
       );
     } catch (e) {
-      snackbar('Login failed: $e', Colors.red);
+      snackbar('Sign up failed: $e', Colors.red);
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -105,16 +123,20 @@ class _StudentLoginState extends State<StudentLogin> {
                   color: Color(0xFF5B6FF5),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.person, color: Colors.white, size: 50),
+                child: const Icon(
+                  Icons.person_add,
+                  color: Colors.white,
+                  size: 50,
+                ),
               ),
               const SizedBox(height: 24),
               const Text(
-                'Student Login',
+                'Student Sign Up',
                 style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
               const Text(
-                'E-Learning Platform',
+                'Create your account',
                 style: TextStyle(fontSize: 16, color: Colors.grey),
               ),
               const SizedBox(height: 32),
@@ -134,6 +156,27 @@ class _StudentLoginState extends State<StudentLogin> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    TextField(
+                      controller: _nameController,
+                      decoration: const InputDecoration(
+                        labelText: 'Full Name',
+                        prefixIcon: Icon(Icons.person_outline),
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: _aboutController,
+                      maxLines: 3,
+                      decoration: const InputDecoration(
+                        labelText: 'About Me',
+                        hintText: 'Tell us a little about yourself...',
+                        prefixIcon: Icon(Icons.info_outline),
+                        border: OutlineInputBorder(),
+                        alignLabelWithHint: true,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
                     TextField(
                       controller: _emailController,
                       keyboardType: TextInputType.emailAddress,
@@ -165,7 +208,7 @@ class _StudentLoginState extends State<StudentLogin> {
                     ),
                     const SizedBox(height: 24),
                     ElevatedButton(
-                      onPressed: _isLoading ? null : _login,
+                      onPressed: _isLoading ? null : _signUp,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF5B6FF5),
                         foregroundColor: Colors.white,
@@ -183,7 +226,10 @@ class _StudentLoginState extends State<StudentLogin> {
                                 strokeWidth: 2,
                               ),
                             )
-                          : const Text('Login', style: TextStyle(fontSize: 16)),
+                          : const Text(
+                              'Sign Up',
+                              style: TextStyle(fontSize: 16),
+                            ),
                     ),
                     const SizedBox(height: 16),
                     Center(
@@ -192,32 +238,12 @@ class _StudentLoginState extends State<StudentLogin> {
                           Navigator.pushReplacement(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => const TeacherLogin(),
+                              builder: (_) => const StudentLogin(),
                             ),
                           );
                         },
                         child: const Text(
-                          'Not a Student? Teacher Portal',
-                          style: TextStyle(
-                            color: Color(0xFF5B6FF5),
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Center(
-                      child: GestureDetector(
-                        onTap: () {
-                          Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const StudentSignUp(),
-                            ),
-                          );
-                        },
-                        child: const Text(
-                          'New User? Sign Up',
+                          'Already have an account? Sign In',
                           style: TextStyle(
                             color: Color(0xFF5B6FF5),
                             fontWeight: FontWeight.w500,
