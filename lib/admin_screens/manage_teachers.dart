@@ -21,6 +21,13 @@ class _ManageTeachersState extends State<ManageTeachers> {
     fetchTeachers();
   }
 
+  Future<void> addAuditLog(String action) async {
+    await supabase.from('audit_logs').insert({
+      'action': action,
+      'timestamp': DateTime.now().toIso8601String(),
+    });
+  }
+
   Future<void> fetchTeachers() async {
     setState(() => _isLoading = true);
 
@@ -54,8 +61,14 @@ class _ManageTeachersState extends State<ManageTeachers> {
         'is_active': !isActive,
       }).eq('teacher_id', teacher['teacher_id']);
 
+      await addAuditLog(
+        isActive
+            ? 'Deactivated teacher account: ${teacher['users']['email']}'
+            : 'Activated teacher account: ${teacher['users']['email']}',
+      );
+
       showMessage(isActive ? 'Teacher deactivated' : 'Teacher activated');
-      fetchTeachers();
+      await fetchTeachers();
     } catch (e) {
       showMessage('Update failed: $e');
     }

@@ -41,6 +41,13 @@ class _CourseApprovalState extends State<CourseApproval> {
     }
   }
 
+  Future<void> addAuditLog(String action) async {
+    await supabase.from('audit_logs').insert({
+      'action': action,
+      'timestamp': DateTime.now().toIso8601String(),
+    });
+  }
+
   Future<void> approveCourse(int courseId) async {
     try {
       await supabase.from('courses').update({
@@ -49,6 +56,7 @@ class _CourseApprovalState extends State<CourseApproval> {
         'is_rejected': false,
         'rejection_reason': null,
       }).eq('course_id', courseId);
+      await addAuditLog('Approved course ID: $courseId');
 
       showMessage('Course approved successfully');
       fetchPendingCourses();
@@ -98,6 +106,7 @@ class _CourseApprovalState extends State<CourseApproval> {
         'is_rejected': true,
         'rejection_reason': reason,
       }).eq('course_id', courseId);
+      await addAuditLog('Rejected course ID: $courseId | Reason: $reason');
 
       showMessage('Course rejected successfully');
       fetchPendingCourses();

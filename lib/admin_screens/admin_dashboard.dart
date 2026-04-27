@@ -42,21 +42,27 @@ class _AdminDashboardState extends State<AdminDashboard> {
     setState(() => _isLoading = true);
 
     try {
-      final teachers = await supabase.from('teachers').select();
-      final students = await supabase.from('students').select();
-      final courses = await supabase.from('courses').select();
+      final teachers = await supabase.from('teachers').select('teacher_id');
+      final students = await supabase.from('students').select('student_id');
+      final courses = await supabase.from('courses').select('course_id');
+
       final pending = await supabase
           .from('courses')
-          .select()
+          .select('course_id')
           .eq('is_approved', false)
           .eq('is_rejected', false);
+
       final approved = await supabase
           .from('courses')
-          .select()
+          .select('course_id')
           .eq('is_approved', true)
           .eq('is_rejected', false);
-      final rejected =
-      await supabase.from('courses').select().eq('is_rejected', true);
+
+      final rejected = await supabase
+          .from('courses')
+          .select('course_id')
+          .eq('is_rejected', true);
+
       final logs = await supabase
           .from('audit_logs')
           .select()

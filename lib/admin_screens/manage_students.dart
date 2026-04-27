@@ -20,6 +20,13 @@ class _ManageStudentsState extends State<ManageStudents> {
     fetchStudents();
   }
 
+  Future<void> addAuditLog(String action) async {
+    await supabase.from('audit_logs').insert({
+      'action': action,
+      'timestamp': DateTime.now().toIso8601String(),
+    });
+  }
+
   Future<void> fetchStudents() async {
     setState(() => _isLoading = true);
 
@@ -46,11 +53,19 @@ class _ManageStudentsState extends State<ManageStudents> {
 
     try {
       await supabase.from('users').update({
-        'lockout_end': isActive ? DateTime.now().add(const Duration(days: 36500)).toIso8601String() : null,
+        'lockout_end': isActive
+            ? DateTime.now().add(const Duration(days: 36500)).toIso8601String()
+            : null,
       }).eq('id', userId);
 
+      await addAuditLog(
+        isActive
+            ? 'Deactivated student account: ${user['email']}'
+            : 'Activated student account: ${user['email']}',
+      );
+
       showMessage(isActive ? 'Student deactivated' : 'Student activated');
-      fetchStudents();
+      await fetchStudents();
     } catch (e) {
       showMessage('Update failed: $e');
     }

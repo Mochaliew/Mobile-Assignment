@@ -30,6 +30,13 @@ class _SystemSettingsScreenState extends State<SystemSettingsScreen> {
     fetchSettings();
   }
 
+  Future<void> addAuditLog(String action) async {
+    await supabase.from('audit_logs').insert({
+      'action': action,
+      'timestamp': DateTime.now().toIso8601String(),
+    });
+  }
+
   Future<void> fetchSettings() async {
     setState(() => _isLoading = true);
 
@@ -75,6 +82,8 @@ class _SystemSettingsScreenState extends State<SystemSettingsScreen> {
         'smtp_port': int.tryParse(smtpPort.text) ?? 587,
         'sender_email': senderEmail.text.trim(),
       }).eq('system_setting_id', systemSettingId!);
+
+      await addAuditLog('Updated system settings');
 
       showMessage('System settings updated successfully');
     } catch (e) {
