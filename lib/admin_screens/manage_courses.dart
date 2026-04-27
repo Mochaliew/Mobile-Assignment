@@ -12,6 +12,7 @@ class _ManageCoursesScreenState extends State<ManageCoursesScreen> {
   final supabase = Supabase.instance.client;
 
   bool _isLoading = false;
+  bool _isActionLoading = false;
   String filter = 'All';
   List<dynamic> courses = [];
 
@@ -21,6 +22,105 @@ class _ManageCoursesScreenState extends State<ManageCoursesScreen> {
   void initState() {
     super.initState();
     fetchCourses();
+  }
+
+  Future<void> addAuditLog(String action) async {
+    await supabase.from('audit_logs').insert({
+      'action': action,
+      'timestamp': DateTime.now().toIso8601String(),
+    });
+  }
+
+  Future<void> approveCourse(int courseId) async {
+    if (_isActionLoading) return;
+
+    setState(() => _isActionLoading = true);
+
+    try {
+      await supabase.from('courses').update({
+        'is_approved': true,
+        'is_published': true,
+        'is_rejected': false,
+        'rejection_reason': null,
+      }).eq('course_id', courseId);
+
+      await addAuditLog('Approved course ID: $courseId');
+      showMessage('Course approved');
+      await fetchCourses();
+    } finally {
+      setState(() => _isActionLoading = false);
+    }
+  }
+
+  Future<void> rejectCourse(int courseId) async {
+    final controller = TextEditingController();
+
+    final reason = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Reject Course'),
+        content: TextField(
+          controller: controller,
+          maxLines: 3,
+          decoration: const InputDecoration(
+            labelText: 'Rejection reason',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(dialogContext, controller.text.trim());
+            },
+            child: const Text('Reject'),
+          ),
+        ],
+      ),
+    );
+
+    if (reason == null || reason.isEmpty) return;
+
+    try {
+      await supabase.from('courses').update({
+        'is_approved': false,
+        'is_published': false,
+        'is_rejected': true,
+        'rejection_reason': reason,
+      }).eq('course_id', courseId);
+
+      await addAuditLog('Rejected course ID: $courseId | Reason: $reason');
+
+      showMessage('Course rejected');
+      await fetchCourses();
+    } catch (e) {
+      showMessage('Reject failed: $e');
+    }
+  }
+
+  Future<void> restoreToPending(int courseId) async {
+    if (_isActionLoading) return;
+
+    setState(() => _isActionLoading = true);
+
+    try {
+      await supabase.from('courses').update({
+        'is_approved': false,
+        'is_published': false,
+        'is_rejected': false,
+        'rejection_reason': null,
+      }).eq('course_id', courseId);
+
+      await addAuditLog('Restored course ID: $courseId to pending');
+      showMessage('Course restored to pending');
+
+      await fetchCourses();
+    } finally {
+      setState(() => _isActionLoading = false);
+    }
   }
 
   Future<void> fetchCourses() async {
@@ -66,6 +166,26 @@ class _ManageCoursesScreenState extends State<ManageCoursesScreen> {
     ScaffoldMessenger.of(context)
       ..clearSnackBars()
       ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<bool> confirmAction(String title) async {
+    return await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Confirm'),
+          ),
+        ],
+      ),
+    ) ??
+        false;
   }
 
   void showCourseDetails(Map course) {
@@ -163,31 +283,104 @@ class _ManageCoursesScreenState extends State<ManageCoursesScreen> {
 
                 return Card(
                   margin: const EdgeInsets.only(bottom: 12),
-                  child: ListTile(
-                    onTap: () => showCourseDetails(c),
-                    leading: CircleAvatar(
-                      backgroundColor: statusColor,
-                      child: const Icon(
-                        Icons.menu_book,
-                        color: Colors.white,
-                      ),
-                    ),
-                    title: Text(c['title'] ?? ''),
-                    subtitle: Column(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Teacher: $teacher'),
-                        Text('Category: $category'),
-                        Text(
-                          'Status: $status',
-                          style: TextStyle(
-                            color: statusColor,
-                            fontWeight: FontWeight.bold,
+                        ListTile(
+                          onTap: () => showCourseDetails(c),
+                          leading: CircleAvatar(
+                            backgroundColor: statusColor,
+                            child: const Icon(Icons.menu_book, color: Colors.white),
                           ),
+                          title: Text(c['title'] ?? ''),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Teacher: $teacher'),
+                              Text('Category: $category'),
+                              Container(
+                                margin: const EdgeInsets.only(top: 4),
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: statusColor.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  status,
+                                  style: TextStyle(
+                                    color: statusColor,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        const SizedBox(height: 8),
+
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: () => showCourseDetails(c),
+                                icon: const Icon(Icons.visibility),
+                                label: const Text('View'),
+                              ),
+                            ),
+
+                            if (status == 'Pending') ...[
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: FilledButton.icon(
+                                  onPressed: () async {
+                                    final confirm = await confirmAction('Approve this course?');
+                                    if (confirm) await approveCourse(c['course_id']);
+                                  },
+                                  icon: const Icon(Icons.check),
+                                  label: const Text('Approve'),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: () => rejectCourse(c['course_id']),
+                                  icon: const Icon(Icons.close),
+                                  label: const Text('Reject'),
+                                ),
+                              ),
+                            ],
+
+                            if (status == 'Approved') ...[
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: () => rejectCourse(c['course_id']),
+                                  icon: const Icon(Icons.close),
+                                  label: const Text('Reject'),
+                                ),
+                              ),
+                            ],
+
+                            if (status == 'Rejected') ...[
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: FilledButton.icon(
+                                  onPressed: () async {
+                                    final confirm = await confirmAction('Restore to pending?');
+                                    if (confirm) await restoreToPending(c['course_id']);
+                                  },
+                                  icon: const Icon(Icons.restore),
+                                  label: const Text('Restore'),
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                       ],
                     ),
-                    trailing: const Icon(Icons.chevron_right),
                   ),
                 );
               },
