@@ -52,6 +52,127 @@ class _ManageTeachersState extends State<ManageTeachers> {
     }
   }
 
+  Future<void> createTeacher() async {
+    final nameController = TextEditingController();
+    final emailController = TextEditingController();
+    final passwordController = TextEditingController();
+    final subjectController = TextEditingController();
+
+    final result = await showDialog<Map<String, String>>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Create Teacher Account'),
+        content: SingleChildScrollView(
+          child: Column(
+            children: [
+              TextField(
+                controller: nameController,
+                decoration: const InputDecoration(
+                  labelText: 'Full Name',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: emailController,
+                decoration: const InputDecoration(
+                  labelText: 'Email',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: passwordController,
+                obscureText: true,
+                decoration: const InputDecoration(
+                  labelText: 'Password',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: subjectController,
+                decoration: const InputDecoration(
+                  labelText: 'Subject Area',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(dialogContext, {
+                'name': nameController.text.trim(),
+                'email': emailController.text.trim(),
+                'password': passwordController.text.trim(),
+                'subject': subjectController.text.trim(),
+              });
+            },
+            child: const Text('Create'),
+          ),
+        ],
+      ),
+    );
+
+    if (result == null) return;
+
+    final name = result['name']!;
+    final email = result['email']!;
+    final password = result['password']!;
+    final subject = result['subject']!;
+
+    if (name.isEmpty || email.isEmpty || password.isEmpty || subject.isEmpty) {
+      showMessage('Please fill in all fields.');
+      return;
+    }
+
+    try {
+      final existingUser = await supabase
+          .from('users')
+          .select()
+          .eq('email', email)
+          .maybeSingle();
+
+      if (existingUser != null) {
+        showMessage('Email already exists.');
+        return;
+      }
+
+      final userResponse = await supabase
+          .from('users')
+          .insert({
+        'full_name': name,
+        'email': email,
+        'password_hash': password,
+        'role': 'Teacher',
+        'created_at': DateTime.now().toIso8601String(),
+      })
+          .select()
+          .single();
+
+      final userId = userResponse['id'];
+
+      await supabase.from('teachers').insert({
+        'user_id': userId,
+        'subject_area': subject,
+        'is_active': true,
+      });
+
+      await addAuditLog('Created teacher account: $email');
+
+      showMessage('Teacher account created successfully.');
+      await fetchTeachers();
+    } catch (e) {
+      showMessage('Create teacher failed: $e');
+    }
+  }
+
   Future<void> toggleTeacherStatus(Map teacher) async {
     final userId = teacher['users']['id'];
     final bool isActive = teacher['is_active'] == true;
@@ -94,6 +215,13 @@ class _ManageTeachersState extends State<ManageTeachers> {
           ),
         ],
       ),
+
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: createTeacher,
+        icon: const Icon(Icons.add),
+        label: const Text('Create Teacher'),
+      ),
+
       body: Column(
         children: [
           Padding(
