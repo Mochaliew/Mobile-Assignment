@@ -51,6 +51,41 @@ class _StudentDashboardState extends State<StudentDashboard> {
           ''')
           .eq('student_id', studentId);
 
+      // 1b. Recalculate progress per enrollment from assessments
+      final courseIds = (enrollmentsData as List)
+          .map((e) => e['course_id'] as int)
+          .toList();
+
+      if (courseIds.isNotEmpty) {
+        final allAssessments = await supabase
+            .from('assessments')
+            .select('course_id, assessment_id')
+            .inFilter('course_id', courseIds);
+        final totalPerCourse = <int, int>{};
+        for (var a in allAssessments) {
+          final cid = a['course_id'] as int;
+          totalPerCourse[cid] = (totalPerCourse[cid] ?? 0) + 1;
+        }
+
+        final certs = await supabase
+            .from('certificates')
+            .select('course_id, assesment_id')
+            .eq('student_id', studentId)
+            .not('assesment_id', 'is', null);
+        final completedPerCourse = <int, int>{};
+        for (var c in certs) {
+          final cid = c['course_id'] as int;
+          completedPerCourse[cid] = (completedPerCourse[cid] ?? 0) + 1;
+        }
+
+        for (var e in enrollmentsData) {
+          final cid = e['course_id'] as int;
+          final total = totalPerCourse[cid] ?? 0;
+          final completed = completedPerCourse[cid] ?? 0;
+          e['progress'] = total > 0 ? ((completed / total) * 100).round() : 0;
+        }
+      }
+
       // 2. Certificates with course + assessment info
       final certificatesData = await supabase
           .from('certificates')
@@ -70,9 +105,6 @@ class _StudentDashboardState extends State<StudentDashboard> {
           .order('issue_date', ascending: false);
 
       // 3. Assessments for enrolled courses (exclude completed)
-      final courseIds = (enrollmentsData as List)
-          .map((e) => e['course_id'] as int)
-          .toList();
 
       final completedAssessments = await supabase
           .from('certificates')
@@ -210,7 +242,7 @@ class _StudentDashboardState extends State<StudentDashboard> {
 
   // --- Derived data helpers --------------------------------------------------
   int get _activeCount => _enrollments
-      .where((e) => (e['progress'] as int) > 0 && (e['progress'] as int) < 100)
+      .where((e) => (e['progress'] as int) >= 0 && (e['progress'] as int) < 100)
       .length;
 
   int get _completedCount =>
@@ -221,7 +253,7 @@ class _StudentDashboardState extends State<StudentDashboard> {
   int get _assessmentCount => _assessments.length;
 
   List<dynamic> get _continueLearning => _enrollments
-      .where((e) => (e['progress'] as int) > 0 && (e['progress'] as int) < 100)
+      .where((e) => (e['progress'] as int) >= 0 && (e['progress'] as int) < 100)
       .toList();
 
   // --------------------------------------------------------------------------

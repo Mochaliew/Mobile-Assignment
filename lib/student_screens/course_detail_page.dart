@@ -31,6 +31,7 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
   List<dynamic> _assessments = [];
   dynamic _finalExam;
   Set<int> _completedAssessmentIds = {};
+  Map<int, dynamic> _filesByLessonId = {};
 
   @override
   void initState() {
@@ -70,12 +71,25 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
         completedIds = {for (var c in certs) c['assesment_id'] as int};
       }
 
+      // Fetch files for this course's lessons
+      final lessonIds = (lessonsData as List)
+          .map((l) => l['lesson_id'] as int)
+          .toList();
+      final filesData = lessonIds.isNotEmpty
+          ? await supabase
+                .from('course_files')
+                .select('*')
+                .inFilter('lesson_id', lessonIds)
+          : [];
+      final filesMap = {for (var f in filesData) f['lesson_id'] as int: f};
+
       if (mounted) {
         setState(() {
           _lessons = lessonsData;
           _assessments = assessmentsData;
           _finalExam = finalExamData;
           _completedAssessmentIds = completedIds;
+          _filesByLessonId = filesMap;
           _isLoading = false;
         });
       }
@@ -259,6 +273,8 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
                               scheduleDate: lesson['schedule_date'] != null
                                   ? DateTime.tryParse(lesson['schedule_date'])
                                   : null,
+                              file:
+                                  _filesByLessonId[lesson['lesson_id'] as int],
                             ),
                           );
                         }),
@@ -397,6 +413,7 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
     required String subtitle,
     String? meetLink,
     DateTime? scheduleDate,
+    dynamic file,
   }) {
     final now = DateTime.now();
     final isPast = scheduleDate != null && scheduleDate.isBefore(now);
@@ -470,9 +487,46 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
               ),
             ],
           ),
+          if (file != null) ...[
+            const SizedBox(height: 12),
+            GestureDetector(
+              onTap: () => _openMaterial(file),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.insert_drive_file,
+                    size: 18,
+                    color: Color(0xFF5B6FF5),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Material: ${file['file_name'] ?? 'File'}',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: Color(0xFF5B6FF5),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
+  }
+
+  void _openMaterial(dynamic file) {
+    final url = file['file_path'] as String?;
+    if (url == null || url.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('No file URL available')));
+      return;
+    }
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('Material URL: $url')));
   }
 
   Widget _assessmentTile({

@@ -52,10 +52,36 @@ class _StudentCatalogState extends State<StudentCatalog> {
           e['course_id'] as int: (e['progress'] ?? 0) as int,
       };
 
+      // Fetch total assessments per course
+      final allAssessments = await supabase
+          .from('assessments')
+          .select('course_id, assessment_id');
+      final totalPerCourse = <int, int>{};
+      for (var a in allAssessments) {
+        final cid = a['course_id'] as int;
+        totalPerCourse[cid] = (totalPerCourse[cid] ?? 0) + 1;
+      }
+
+      // Fetch completed assessments per course for this student
+      final certs = await supabase
+          .from('certificates')
+          .select('course_id, assesment_id')
+          .eq('student_id', studentId)
+          .not('assesment_id', 'is', null);
+      final completedPerCourse = <int, int>{};
+      for (var c in certs) {
+        final cid = c['course_id'] as int;
+        completedPerCourse[cid] = (completedPerCourse[cid] ?? 0) + 1;
+      }
+
       final loaded = (coursesData as List).map<CatalogCourse>((c) {
         final courseId = c['course_id'] as int;
-        final progress = enrollmentMap[courseId] ?? 0;
         final isPurchased = enrollmentMap.containsKey(courseId);
+        final total = totalPerCourse[courseId] ?? 0;
+        final completed = completedPerCourse[courseId] ?? 0;
+        final progress = isPurchased && total > 0
+            ? ((completed / total) * 100).round()
+            : 0;
         final instructor = c['teachers']?['users']?['full_name'] ?? 'Unknown';
 
         return CatalogCourse(
