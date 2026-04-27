@@ -18,6 +18,7 @@ class _StudentProfileState extends State<StudentProfile> {
 
   List<dynamic> _notes = [];
   List<dynamic> _activities = [];
+  List<dynamic> _certificates = [];
 
   String _name = '';
   String _about = '';
@@ -65,6 +66,16 @@ class _StudentProfileState extends State<StudentProfile> {
           .select('*')
           .order('activity_date', ascending: true);
 
+      final certificatesData = await supabase
+          .from('certificates')
+          .select('''
+            *,
+            courses(title, teachers(user_id, users(full_name))),
+            assessments(title)
+          ''')
+          .eq('student_id', studentId)
+          .order('issue_date', ascending: false);
+
       if (mounted) {
         setState(() {
           _name =
@@ -74,6 +85,7 @@ class _StudentProfileState extends State<StudentProfile> {
           _about = studentData?['about'] ?? '';
           _notes = notesData;
           _activities = activitiesData;
+          _certificates = certificatesData;
           _isLoading = false;
         });
       }
@@ -705,6 +717,8 @@ class _StudentProfileState extends State<StudentProfile> {
   }
 
   Widget _buildCertificatesCard() {
+    if (_certificates.isEmpty) return const SizedBox.shrink();
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -726,17 +740,24 @@ class _StudentProfileState extends State<StudentProfile> {
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 12),
-          _certificateTile(
-            'UI/UX Design Fundamentals',
-            'Emma Williams',
-            'Mar 15, 2026',
-          ),
-          const SizedBox(height: 10),
-          _certificateTile(
-            'Digital Marketing Mastery',
-            'James Taylor',
-            'Apr 10, 2026',
-          ),
+          ..._certificates.asMap().entries.map((entry) {
+            final cert = entry.value;
+            final assessmentTitle = cert['assessments']?['title'];
+            final course = cert['courses'];
+            final title = assessmentTitle ?? course?['title'] ?? 'Course';
+            final instructor =
+                course?['teachers']?['users']?['full_name'] ?? 'Unknown';
+            final issueDate = cert['issue_date'] != null
+                ? DateTime.tryParse(cert['issue_date'])
+                : null;
+            final dateText = issueDate != null ? _fmtDate(issueDate) : 'N/A';
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: entry.key < _certificates.length - 1 ? 10 : 0,
+              ),
+              child: _certificateTile(title, instructor, dateText),
+            );
+          }),
         ],
       ),
     );

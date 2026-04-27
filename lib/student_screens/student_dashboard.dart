@@ -51,7 +51,7 @@ class _StudentDashboardState extends State<StudentDashboard> {
           ''')
           .eq('student_id', studentId);
 
-      // 2. Certificates with course info
+      // 2. Certificates with course + assessment info
       final certificatesData = await supabase
           .from('certificates')
           .select('''
@@ -63,24 +63,37 @@ class _StudentDashboardState extends State<StudentDashboard> {
                 user_id,
                 users(full_name)
               )
-            )
+            ),
+            assessments(title)
           ''')
           .eq('student_id', studentId)
           .order('issue_date', ascending: false);
 
-      // 3. Assessments for enrolled courses
+      // 3. Assessments for enrolled courses (exclude completed)
       final courseIds = (enrollmentsData as List)
           .map((e) => e['course_id'] as int)
           .toList();
 
+      final completedAssessments = await supabase
+          .from('certificates')
+          .select('assesment_id')
+          .eq('student_id', studentId)
+          .not('assesment_id', 'is', null);
+      final completedIds = {
+        for (var c in completedAssessments) c['assesment_id'] as int,
+      };
+
       List<dynamic> assessmentsData = [];
       if (courseIds.isNotEmpty) {
-        assessmentsData = await supabase
+        final raw = await supabase
             .from('assessments')
             .select('*, courses(title)')
             .inFilter('course_id', courseIds)
             .gte('dead_line', DateTime.now().toIso8601String())
             .order('dead_line');
+        assessmentsData = (raw as List)
+            .where((a) => !completedIds.contains(a['assessment_id'] as int))
+            .toList();
       }
 
       if (mounted) {
@@ -579,8 +592,9 @@ class _StudentDashboardState extends State<StudentDashboard> {
 
   Widget _certificateTile(dynamic cert) {
     final course = cert['courses'];
-    final title = course['title'] ?? 'Course';
-    final instructor = course['teachers']?['users']?['full_name'] ?? 'Unknown';
+    final assessment = cert['assessments'];
+    final title = assessment?['title'] ?? course?['title'] ?? 'Course';
+    final instructor = course?['teachers']?['users']?['full_name'] ?? 'Unknown';
     final issueDate = cert['issue_date'] != null
         ? DateTime.tryParse(cert['issue_date'])
         : null;

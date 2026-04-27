@@ -1,7 +1,9 @@
 // --- Course Detail Page (Database-driven) ------------------------------------
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../DB.dart';
 import 'models/catalog_course.dart';
+import 'widgets/assessment_quiz_dialog.dart';
 import 'widgets/purchase_success_overlay.dart';
 
 class CourseDetailPage extends StatefulWidget {
@@ -28,6 +30,7 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
   List<dynamic> _lessons = [];
   List<dynamic> _assessments = [];
   dynamic _finalExam;
+  Set<int> _completedAssessmentIds = {};
 
   @override
   void initState() {
@@ -37,6 +40,7 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
 
   Future<void> _loadCourseDetails() async {
     final courseId = widget.course.id;
+    final studentId = StudentSession.studentId;
     try {
       final lessonsData = await supabase
           .from('lessons')
@@ -56,11 +60,22 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
           .eq('course_id', courseId)
           .maybeSingle();
 
+      Set<int> completedIds = {};
+      if (studentId != null) {
+        final certs = await supabase
+            .from('certificates')
+            .select('assesment_id')
+            .eq('student_id', studentId)
+            .not('assesment_id', 'is', null);
+        completedIds = {for (var c in certs) c['assesment_id'] as int};
+      }
+
       if (mounted) {
         setState(() {
           _lessons = lessonsData;
           _assessments = assessmentsData;
           _finalExam = finalExamData;
+          _completedAssessmentIds = completedIds;
           _isLoading = false;
         });
       }
@@ -273,9 +288,14 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
                               bottom: index < _assessments.length - 1 ? 10 : 0,
                             ),
                             child: _assessmentTile(
-                              a['title'] ?? 'Assessment',
-                              'Passing Marks: ${a['passing_mark'] ?? 'N/A'}%',
-                              'Deadline: ${_fmtDate(a['dead_line'])}',
+                              assessment: a,
+                              title: a['title'] ?? 'Assessment',
+                              passing:
+                                  'Passing Marks: ${a['passing_mark'] ?? 'N/A'}%',
+                              deadline: 'Deadline: ${_fmtDate(a['dead_line'])}',
+                              isCompleted: _completedAssessmentIds.contains(
+                                a['assessment_id'] as int,
+                              ),
                             ),
                           );
                         }),
@@ -455,44 +475,103 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
     );
   }
 
-  Widget _assessmentTile(String title, String passing, String deadline) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            passing,
-            style: const TextStyle(color: Colors.black87, fontSize: 14),
-          ),
-          const SizedBox(height: 6),
-          Row(
-            children: [
-              const Icon(Icons.calendar_today, size: 16, color: Colors.grey),
-              const SizedBox(width: 6),
-              Text(
-                deadline,
-                style: const TextStyle(color: Colors.grey, fontSize: 14),
-              ),
-            ],
-          ),
-        ],
+  Widget _assessmentTile({
+    required dynamic assessment,
+    required String title,
+    required String passing,
+    required String deadline,
+    required bool isCompleted,
+  }) {
+    return GestureDetector(
+      onTap: isCompleted
+          ? null
+          : () {
+              showDialog(
+                context: context,
+                builder: (_) => AssessmentQuizDialog(
+                  assessmentId: assessment['assessment_id'] as int,
+                  courseId: widget.course.id,
+                  assessmentTitle: title,
+                  passingMark: assessment['passing_mark'] ?? 70,
+                ),
+              );
+            },
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                if (isCompleted)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.green.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.check_circle, size: 14, color: Colors.green),
+                        SizedBox(width: 4),
+                        Text(
+                          'Completed',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.green,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  const Icon(Icons.chevron_right, color: Color(0xFF5B6FF5)),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              passing,
+              style: const TextStyle(color: Colors.black87, fontSize: 14),
+            ),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                const Icon(Icons.calendar_today, size: 16, color: Colors.grey),
+                const SizedBox(width: 6),
+                Text(
+                  deadline,
+                  style: const TextStyle(color: Colors.grey, fontSize: 14),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
