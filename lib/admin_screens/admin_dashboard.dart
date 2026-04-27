@@ -12,6 +12,9 @@ import 'audit_logs.dart';
 import 'manage_teachers.dart';
 import 'role_permission.dart';
 import 'enrollment_management.dart';
+import 'approved_courses.dart';
+import 'rejected_courses.dart';
+import 'manage_courses.dart';
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -147,7 +150,17 @@ class _AdminDashboardState extends State<AdminDashboard> {
                   _StatCard('Total Teachers', totalTeachers, Colors.blue),
                   _StatCard('Total Students', totalStudents, Colors.green),
                   _StatCard('Total Courses', totalCourses, Colors.orange),
-                  _StatCard('Pending Courses', pendingCourses, Colors.amber),
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const CourseApproval(),
+                        ),
+                      ).then((_) => fetchDashboard());
+                    },
+                    child: _StatCard('Pending Courses', pendingCourses, Colors.amber),
+                  ),
                 ],
               ),
 
@@ -162,18 +175,38 @@ class _AdminDashboardState extends State<AdminDashboard> {
               Row(
                 children: [
                   Expanded(
-                    child: _MiniStatusCard(
-                      title: 'Approved',
-                      value: approvedCourses,
-                      color: Colors.green,
+                    child: GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const ApprovedCoursesScreen(),
+                          ),
+                        ).then((_) => fetchDashboard());
+                      },
+                      child: _MiniStatusCard(
+                        title: 'Approved',
+                        value: approvedCourses,
+                        color: Colors.green,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: _MiniStatusCard(
-                      title: 'Rejected',
-                      value: rejectedCourses,
-                      color: Colors.red,
+                    child: GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const RejectedCoursesScreen(),
+                          ),
+                        ).then((_) => fetchDashboard());
+                      },
+                      child: _MiniStatusCard(
+                        title: 'Rejected',
+                        value: rejectedCourses,
+                        color: Colors.red,
+                      ),
                     ),
                   ),
                 ],
@@ -190,13 +223,11 @@ class _AdminDashboardState extends State<AdminDashboard> {
               _MenuCard(
                 icon: Icons.school,
                 title: 'Manage Courses',
-                subtitle: 'Approve, publish and monitor courses',
+                subtitle: 'View all pending, approved and rejected courses',
                 onTap: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(
-                      builder: (_) => const CourseApproval(),
-                    ),
+                    MaterialPageRoute(builder: (_) => const ManageCoursesScreen()),
                   ).then((_) => fetchDashboard());
                 },
               ),

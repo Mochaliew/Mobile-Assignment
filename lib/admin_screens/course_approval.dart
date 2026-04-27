@@ -70,7 +70,7 @@ class _CourseApprovalState extends State<CourseApproval> {
 
     final reason = await showDialog<String>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Reject Course'),
         content: TextField(
           controller: reasonController,
@@ -82,12 +82,12 @@ class _CourseApprovalState extends State<CourseApproval> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Cancel'),
           ),
           FilledButton(
             onPressed: () {
-              Navigator.pop(context, reasonController.text.trim());
+              Navigator.pop(dialogContext, reasonController.text.trim());
             },
             child: const Text('Reject'),
           ),
