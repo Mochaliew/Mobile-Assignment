@@ -15,6 +15,9 @@ import 'enrollment_management.dart';
 import 'approved_courses.dart';
 import 'rejected_courses.dart';
 import 'manage_courses.dart';
+import 'package:fl_chart/fl_chart.dart';
+import 'view_students.dart';
+import 'view_teachers.dart';
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -147,8 +150,24 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 mainAxisSpacing: 12,
                 childAspectRatio: 1.55,
                 children: [
-                  _StatCard('Total Teachers', totalTeachers, Colors.blue),
-                  _StatCard('Total Students', totalStudents, Colors.green),
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const ViewTeachersScreen()),
+                      );
+                    },
+                    child: _StatCard('Total Teachers', totalTeachers, Colors.blue),
+                  ),
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const ViewStudentsScreen()),
+                      );
+                    },
+                    child: _StatCard('Total Students', totalStudents, Colors.green),
+                  ),
                   _StatCard('Total Courses', totalCourses, Colors.orange),
                   GestureDetector(
                     onTap: () {
@@ -210,6 +229,65 @@ class _AdminDashboardState extends State<AdminDashboard> {
                     ),
                   ),
                 ],
+              ),
+
+              const SizedBox(height: 24),
+
+              const Text(
+                'Course Analytics',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+
+              const SizedBox(height: 12),
+
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: SizedBox(
+                    height: 220,
+                    child: PieChart(
+                      PieChartData(
+                        sectionsSpace: 3,
+                        centerSpaceRadius: 45,
+                        sections: [
+                          PieChartSectionData(
+                            value: pendingCourses.toDouble(),
+                            title: 'Pending\n$pendingCourses',
+                            color: Colors.orange,
+                            radius: 60,
+                            titleStyle: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                          PieChartSectionData(
+                            value: approvedCourses.toDouble(),
+                            title: 'Approved\n$approvedCourses',
+                            color: Colors.green,
+                            radius: 60,
+                            titleStyle: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                          PieChartSectionData(
+                            value: rejectedCourses.toDouble(),
+                            title: 'Rejected\n$rejectedCourses',
+                            color: Colors.red,
+                            radius: 60,
+                            titleStyle: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
               ),
 
               const SizedBox(height: 24),
