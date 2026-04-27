@@ -1,18 +1,18 @@
-// --- Teacher Login Screen ----------------------------------------------------
+// --- Student Login Screen ----------------------------------------------------
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide User;
 import '../DB.dart';
-import '../student_screens/student_login.dart';
-import 'teacher_dashboard.dart';
+import '../teacher_screens/teacher_login.dart';
+import 'student_main_shell.dart';
 
-class TeacherLogin extends StatefulWidget {
-  const TeacherLogin({super.key});
+class StudentLogin extends StatefulWidget {
+  const StudentLogin({super.key});
 
   @override
-  State<TeacherLogin> createState() => _TeacherLoginState();
+  State<StudentLogin> createState() => _StudentLoginState();
 }
 
-class _TeacherLoginState extends State<TeacherLogin> {
+class _StudentLoginState extends State<StudentLogin> {
   final supabase = Supabase.instance.client;
 
   final _emailController = TextEditingController();
@@ -49,11 +49,11 @@ class _TeacherLoginState extends State<TeacherLogin> {
           .from('users')
           .select()
           .eq('email', email)
-          .eq('role', 'Teacher')
+          .eq('role', 'Student')
           .maybeSingle();
 
       if (userResponse == null) {
-        snackbar('No teacher found with the given email.', Colors.red);
+        snackbar('No student found with the given email.', Colors.red);
         return;
       }
 
@@ -62,33 +62,25 @@ class _TeacherLoginState extends State<TeacherLogin> {
         return;
       }
 
-      final teacherResponse = await supabase
-          .from('teachers')
+      final studentResponse = await supabase
+          .from('students')
           .select()
           .eq('user_id', userResponse['id'])
           .maybeSingle();
 
-      if (teacherResponse == null) {
-        snackbar('Teacher profile not found.', Colors.red);
+      if (studentResponse == null) {
+        snackbar('Student profile not found.', Colors.red);
         return;
       }
 
-      if (teacherResponse['is_active'] != true) {
-        snackbar(
-          'Your account has been deactivated. Please contact administrator.',
-          Colors.red,
-        );
-        return;
-      }
-
-      TeacherSession.teacherId = teacherResponse['teacher_id'];
-      TeacherSession.teacherName = userResponse['full_name'] ?? '';
-      TeacherSession.teacherEmail = userResponse['email'] ?? '';
+      StudentSession.studentId = studentResponse['student_id'];
+      StudentSession.studentName = userResponse['full_name'] ?? '';
+      StudentSession.studentEmail = userResponse['email'] ?? '';
 
       if (!mounted) return;
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => const TeacherDashboard()),
+        MaterialPageRoute(builder: (_) => const StudentMainShell()),
       );
     } catch (e) {
       snackbar('Login failed: $e', Colors.red);
@@ -112,11 +104,11 @@ class _TeacherLoginState extends State<TeacherLogin> {
                   color: Color(0xFF5B6FF5),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.school, color: Colors.white, size: 50),
+                child: const Icon(Icons.person, color: Colors.white, size: 50),
               ),
               const SizedBox(height: 24),
               const Text(
-                'Teacher Login',
+                'Student Login',
                 style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
@@ -199,12 +191,12 @@ class _TeacherLoginState extends State<TeacherLogin> {
                           Navigator.pushReplacement(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => const StudentLogin(),
+                              builder: (_) => const TeacherLogin(),
                             ),
                           );
                         },
                         child: const Text(
-                          'Not a Teacher? Student Portal',
+                          'Not a Student? Teacher Portal',
                           style: TextStyle(
                             color: Color(0xFF5B6FF5),
                             fontWeight: FontWeight.w500,

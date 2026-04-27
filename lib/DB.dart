@@ -11,6 +11,19 @@ class TeacherSession {
   }
 }
 
+// --- Student Session ---------------------------------------------------------
+class StudentSession {
+  static int? studentId;
+  static String? studentName;
+  static String? studentEmail;
+
+  static void clear() {
+    studentId = null;
+    studentName = null;
+    studentEmail = null;
+  }
+}
+
 // --- User --------------------------------------------------------------------
 class User {
   final int id;
@@ -68,10 +81,8 @@ class Category {
 
   Category({required this.categoryId, required this.name});
 
-  factory Category.fromJson(Map<String, dynamic> map) => Category(
-    categoryId: map['category_id'],
-    name: map['name'] ?? '',
-  );
+  factory Category.fromJson(Map<String, dynamic> map) =>
+      Category(categoryId: map['category_id'], name: map['name'] ?? '');
 }
 
 // --- Course ------------------------------------------------------------------
@@ -308,11 +319,7 @@ class Admin {
   final int userId;
   final User? user;
 
-  Admin({
-    required this.adminId,
-    required this.userId,
-    this.user,
-  });
+  Admin({required this.adminId, required this.userId, this.user});
 
   factory Admin.fromJson(Map<String, dynamic> map) => Admin(
     adminId: map['admin_id'],
@@ -342,7 +349,7 @@ class Student {
     userId: map['user_id'],
     className: map['class_name'],
     enrollmentDate:
-    DateTime.tryParse(map['enrollment_date'] ?? '') ?? DateTime.now(),
+        DateTime.tryParse(map['enrollment_date'] ?? '') ?? DateTime.now(),
     user: map['users'] != null ? User.fromJson(map['users']) : null,
   );
 }
@@ -450,8 +457,7 @@ class Enrollment {
     paymentStatus: map['payment_status'] ?? false,
     paymentMethod: map['payment_method'] ?? '',
     amountPaid: (map['amount_paid'] ?? 0).toDouble(),
-    student:
-    map['students'] != null ? Student.fromJson(map['students']) : null,
+    student: map['students'] != null ? Student.fromJson(map['students']) : null,
     course: map['courses'] != null ? Course.fromJson(map['courses']) : null,
   );
 }
@@ -523,9 +529,10 @@ class PaymentTransaction {
         amount: (map['amount'] ?? 0).toDouble(),
         paymentMethod: map['payment_method'] ?? 'FakeGateway',
         transactionDate:
-        DateTime.tryParse(map['transaction_date'] ?? '') ?? DateTime.now(),
-        student:
-        map['students'] != null ? Student.fromJson(map['students']) : null,
+            DateTime.tryParse(map['transaction_date'] ?? '') ?? DateTime.now(),
+        student: map['students'] != null
+            ? Student.fromJson(map['students'])
+            : null,
         course: map['courses'] != null ? Course.fromJson(map['courses']) : null,
       );
 }
