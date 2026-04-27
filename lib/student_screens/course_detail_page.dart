@@ -1,5 +1,6 @@
-// --- Course Detail Page ------------------------------------------------------
+// --- Course Detail Page (Database-driven) ------------------------------------
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'models/catalog_course.dart';
 import 'widgets/purchase_success_overlay.dart';
 
@@ -20,7 +21,58 @@ class CourseDetailPage extends StatefulWidget {
 }
 
 class _CourseDetailPageState extends State<CourseDetailPage> {
+  final supabase = Supabase.instance.client;
+  bool _isLoading = true;
   bool _showingSuccess = false;
+
+  List<dynamic> _lessons = [];
+  List<dynamic> _assessments = [];
+  dynamic _finalExam;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCourseDetails();
+  }
+
+  Future<void> _loadCourseDetails() async {
+    final courseId = widget.course.id;
+    try {
+      final lessonsData = await supabase
+          .from('lessons')
+          .select('*')
+          .eq('course_id', courseId)
+          .order('lesson_id');
+
+      final assessmentsData = await supabase
+          .from('assessments')
+          .select('*')
+          .eq('course_id', courseId)
+          .order('assessment_id');
+
+      final finalExamData = await supabase
+          .from('final_exams')
+          .select('*')
+          .eq('course_id', courseId)
+          .maybeSingle();
+
+      if (mounted) {
+        setState(() {
+          _lessons = lessonsData;
+          _assessments = assessmentsData;
+          _finalExam = finalExamData;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to load course details: $e')),
+        );
+      }
+    }
+  }
 
   void _confirmPurchase() {
     final priceText = widget.course.price == 0
@@ -67,6 +119,27 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
     Navigator.pop(context, true);
   }
 
+  String _fmtDate(String? iso) {
+    if (iso == null) return 'TBD';
+    final d = DateTime.tryParse(iso);
+    if (d == null) return iso;
+    final months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    return '${months[d.month - 1]} ${d.day}, ${d.year}';
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = widget.course;
@@ -84,170 +157,181 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
       ),
       body: Stack(
         children: [
-          SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Course Info Card
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.04),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
+          _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        c.title,
-                        style: const TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
+                      // Course Info Card
+                      Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.04),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              c.title,
+                              style: const TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'by ${c.instructor}',
+                              style: const TextStyle(
+                                color: Colors.grey,
+                                fontSize: 14,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              c.description,
+                              style: const TextStyle(
+                                fontSize: 15,
+                                color: Colors.black87,
+                                height: 1.5,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'by ${c.instructor}',
-                        style: const TextStyle(
-                          color: Colors.grey,
-                          fontSize: 14,
+                      const SizedBox(height: 24),
+                      // Lessons & Materials
+                      if (_lessons.isNotEmpty) ...[
+                        const Row(
+                          children: [
+                            Icon(Icons.menu_book, color: Color(0xFF5B6FF5)),
+                            SizedBox(width: 8),
+                            Text(
+                              'Lessons & Materials',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        c.description,
-                        style: const TextStyle(
-                          fontSize: 15,
-                          color: Colors.black87,
-                          height: 1.5,
+                        const SizedBox(height: 12),
+                        ..._lessons.asMap().entries.map((entry) {
+                          final index = entry.key;
+                          final lesson = entry.value;
+                          return Padding(
+                            padding: EdgeInsets.only(
+                              bottom: index < _lessons.length - 1 ? 10 : 0,
+                            ),
+                            child: _lessonTile(
+                              lesson['title'] ?? 'Lesson',
+                              lesson['description'] ?? '',
+                            ),
+                          );
+                        }),
+                        const SizedBox(height: 24),
+                      ],
+                      // Assessments
+                      if (_assessments.isNotEmpty) ...[
+                        const Row(
+                          children: [
+                            Icon(Icons.description, color: Color(0xFF5B6FF5)),
+                            SizedBox(width: 8),
+                            Text(
+                              'Assessments',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
+                        const SizedBox(height: 12),
+                        ..._assessments.asMap().entries.map((entry) {
+                          final index = entry.key;
+                          final a = entry.value;
+                          return Padding(
+                            padding: EdgeInsets.only(
+                              bottom: index < _assessments.length - 1 ? 10 : 0,
+                            ),
+                            child: _assessmentTile(
+                              a['title'] ?? 'Assessment',
+                              'Passing Marks: ${a['passing_mark'] ?? 'N/A'}%',
+                              'Deadline: ${_fmtDate(a['dead_line'])}',
+                            ),
+                          );
+                        }),
+                        const SizedBox(height: 24),
+                      ],
+                      // Final Exam
+                      if (_finalExam != null) ...[
+                        const Row(
+                          children: [
+                            Icon(
+                              Icons.calendar_today,
+                              color: Color(0xFF5B6FF5),
+                            ),
+                            SizedBox(width: 8),
+                            Text(
+                              'Final Exam',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.04),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Exam Date: ${_fmtDate(_finalExam['dead_line'])}',
+                                style: const TextStyle(
+                                  fontSize: 15,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Total Marks: ${_finalExam['total_marks'] ?? 'N/A'}  |  Passing: ${_finalExam['passing_mark'] ?? 'N/A'}%',
+                                style: const TextStyle(
+                                  fontSize: 15,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                      ],
+                      // Bottom padding for purchase button
+                      if (widget.showPurchaseButton) const SizedBox(height: 80),
                     ],
                   ),
                 ),
-                const SizedBox(height: 24),
-                // Lessons & Materials
-                const Row(
-                  children: [
-                    Icon(Icons.menu_book, color: Color(0xFF5B6FF5)),
-                    SizedBox(width: 8),
-                    Text(
-                      'Lessons & Materials',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                ...c.lessons.asMap().entries.map((entry) {
-                  final index = entry.key;
-                  final lesson = entry.value;
-                  return Padding(
-                    padding: EdgeInsets.only(
-                      bottom: index < c.lessons.length - 1 ? 10 : 0,
-                    ),
-                    child: _lessonTile(lesson.title, lesson.subtitle),
-                  );
-                }),
-                const SizedBox(height: 24),
-                // Assessments
-                const Row(
-                  children: [
-                    Icon(Icons.description, color: Color(0xFF5B6FF5)),
-                    SizedBox(width: 8),
-                    Text(
-                      'Assessments',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                ...c.assessments.asMap().entries.map((entry) {
-                  final index = entry.key;
-                  final a = entry.value;
-                  return Padding(
-                    padding: EdgeInsets.only(
-                      bottom: index < c.assessments.length - 1 ? 10 : 0,
-                    ),
-                    child: _assessmentTile(
-                      a.title,
-                      'Passing Marks: ${a.passingMarks}',
-                      'Deadline: ${a.deadline}',
-                    ),
-                  );
-                }),
-                const SizedBox(height: 24),
-                // Final Exam
-                if (c.finalExam != null) ...[
-                  const Row(
-                    children: [
-                      Icon(Icons.calendar_today, color: Color(0xFF5B6FF5)),
-                      SizedBox(width: 8),
-                      Text(
-                        'Final Exam',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.04),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Exam Date: ${c.finalExam!.examDate}',
-                          style: const TextStyle(
-                            fontSize: 15,
-                            color: Colors.black87,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          c.finalExam!.description,
-                          style: const TextStyle(
-                            fontSize: 15,
-                            color: Colors.black87,
-                            height: 1.5,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                ],
-                // Bottom padding for purchase button
-                if (widget.showPurchaseButton) const SizedBox(height: 80),
-              ],
-            ),
-          ),
           if (_showingSuccess)
             PurchaseSuccessOverlay(onComplete: _onSuccessComplete),
         ],
@@ -300,11 +384,13 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
             title,
             style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
           ),
-          const SizedBox(height: 6),
-          Text(
-            subtitle,
-            style: const TextStyle(color: Colors.grey, fontSize: 14),
-          ),
+          if (subtitle.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              subtitle,
+              style: const TextStyle(color: Colors.grey, fontSize: 14),
+            ),
+          ],
         ],
       ),
     );

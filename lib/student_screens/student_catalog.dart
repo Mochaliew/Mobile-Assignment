@@ -1,9 +1,9 @@
-// --- Student Catalog ---------------------------------------------------------
+// --- Student Catalog (Database-driven) ---------------------------------------
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../DB.dart';
 import '../teacher_screens/teacher_login.dart';
 import 'course_detail_page.dart';
-import 'data/catalog_data.dart';
 import 'models/catalog_course.dart';
 
 class StudentCatalog extends StatefulWidget {
@@ -14,9 +14,78 @@ class StudentCatalog extends StatefulWidget {
 }
 
 class _StudentCatalogState extends State<StudentCatalog> {
-  final List<CatalogCourse> _courses = getMockCourses();
+  final supabase = Supabase.instance.client;
+  bool _isLoading = true;
+  List<CatalogCourse> _courses = [];
   int _selectedTab = 0; // 0 = All, 1 = Available, 2 = My Purchases
   String _searchQuery = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCourses();
+  }
+
+  Future<void> _loadCourses() async {
+    final studentId = StudentSession.studentId;
+    if (studentId == null) {
+      setState(() => _isLoading = false);
+      return;
+    }
+
+    try {
+      // Fetch all published & approved courses with teacher info
+      final coursesData = await supabase
+          .from('courses')
+          .select(''', teachers(user_id, users(full_name))''')
+          .eq('is_published', true)
+          .eq('is_approved', true);
+
+      // Fetch current student's enrollments
+      final enrollmentsData = await supabase
+          .from('enrollments')
+          .select('course_id, progress')
+          .eq('student_id', studentId);
+
+      final enrollmentMap = {
+        for (var e in enrollmentsData)
+          e['course_id'] as int: (e['progress'] ?? 0) as int,
+      };
+
+      final loaded = (coursesData as List).map<CatalogCourse>((c) {
+        final courseId = c['course_id'] as int;
+        final progress = enrollmentMap[courseId] ?? 0;
+        final isPurchased = enrollmentMap.containsKey(courseId);
+        final instructor = c['teachers']?['users']?['full_name'] ?? 'Unknown';
+
+        return CatalogCourse(
+          id: courseId,
+          title: c['title'] ?? '',
+          instructor: instructor,
+          description: c['description'] ?? '',
+          price: (c['price'] ?? 0).toDouble(),
+          progress: progress / 100,
+          isPurchased: isPurchased,
+          lessons: const [],
+          assessments: const [],
+        );
+      }).toList();
+
+      if (mounted) {
+        setState(() {
+          _courses = loaded;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to load catalog: $e')));
+      }
+    }
+  }
 
   void _logout() {
     StudentSession.clear();
@@ -27,12 +96,24 @@ class _StudentCatalogState extends State<StudentCatalog> {
     );
   }
 
-  void _onCoursePurchased(int courseId) {
-    setState(() {
-      final course = _courses.firstWhere((c) => c.id == courseId);
-      course.isPurchased = true;
-      course.progress = 0.0;
-    });
+  Future<void> _onCoursePurchased(int courseId) async {
+    final studentId = StudentSession.studentId;
+    if (studentId == null) return;
+
+    try {
+      await supabase.from('enrollments').insert({
+        'student_id': studentId,
+        'course_id': courseId,
+        'progress': 0,
+      });
+      await _loadCourses();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Purchase failed: $e')));
+      }
+    }
   }
 
   List<CatalogCourse> get _filteredCourses {
@@ -83,6 +164,13 @@ class _StudentCatalogState extends State<StudentCatalog> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        backgroundColor: Color(0xFFF6F7F9),
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return Scaffold(
       backgroundColor: const Color(0xFFF6F7F9),
       appBar: AppBar(
@@ -97,66 +185,69 @@ class _StudentCatalogState extends State<StudentCatalog> {
           IconButton(icon: const Icon(Icons.logout), onPressed: _logout),
         ],
       ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                // Search bar
-                TextField(
-                  onChanged: (v) => setState(() => _searchQuery = v),
-                  decoration: InputDecoration(
-                    hintText: 'Search courses...',
-                    prefixIcon: const Icon(Icons.search, color: Colors.grey),
-                    filled: true,
-                    fillColor: Colors.white,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 14),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: Color(0xFF5B6FF5)),
+      body: RefreshIndicator(
+        onRefresh: _loadCourses,
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  // Search bar
+                  TextField(
+                    onChanged: (v) => setState(() => _searchQuery = v),
+                    decoration: InputDecoration(
+                      hintText: 'Search courses...',
+                      prefixIcon: const Icon(Icons.search, color: Colors.grey),
+                      filled: true,
+                      fillColor: Colors.white,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFF5B6FF5)),
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 16),
-                // Tabs
-                Row(
-                  children: [
-                    _tabButton('All Courses', 0),
-                    const SizedBox(width: 8),
-                    _tabButton('Available', 1),
-                    const SizedBox(width: 8),
-                    _tabButton('My Purchases', 2),
-                  ],
-                ),
-              ],
+                  const SizedBox(height: 16),
+                  // Tabs
+                  Row(
+                    children: [
+                      _tabButton('All Courses', 0),
+                      const SizedBox(width: 8),
+                      _tabButton('Available', 1),
+                      const SizedBox(width: 8),
+                      _tabButton('My Purchases', 2),
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
-          // Course list
-          Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: _filteredCourses.length,
-              itemBuilder: (context, index) {
-                final course = _filteredCourses[index];
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: course.isPurchased
-                      ? _purchasedCard(course)
-                      : _availableCard(course),
-                );
-              },
+            // Course list
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: _filteredCourses.length,
+                itemBuilder: (context, index) {
+                  final course = _filteredCourses[index];
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: course.isPurchased
+                        ? _purchasedCard(course)
+                        : _availableCard(course),
+                  );
+                },
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

@@ -1,15 +1,107 @@
-// --- Student Dashboard -------------------------------------------------------
+// --- Student Dashboard (Database-driven) -------------------------------------
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../DB.dart';
 import '../teacher_screens/teacher_login.dart';
 import 'course_detail_page.dart';
-import 'data/catalog_data.dart';
 import 'models/catalog_course.dart';
 
-class StudentDashboard extends StatelessWidget {
+class StudentDashboard extends StatefulWidget {
   const StudentDashboard({super.key});
 
-  void _logout(BuildContext context) {
+  @override
+  State<StudentDashboard> createState() => _StudentDashboardState();
+}
+
+class _StudentDashboardState extends State<StudentDashboard> {
+  final supabase = Supabase.instance.client;
+  bool _isLoading = true;
+
+  List<dynamic> _enrollments = [];
+  List<dynamic> _certificates = [];
+  List<dynamic> _assessments = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDashboard();
+  }
+
+  Future<void> _loadDashboard() async {
+    final studentId = StudentSession.studentId;
+    if (studentId == null) {
+      setState(() => _isLoading = false);
+      return;
+    }
+
+    try {
+      // 1. Enrollments with course + teacher info
+      final enrollmentsData = await supabase
+          .from('enrollments')
+          .select('''
+            *,
+            courses(
+              *,
+              teachers(
+                teacher_id,
+                user_id,
+                users(full_name)
+              )
+            )
+          ''')
+          .eq('student_id', studentId);
+
+      // 2. Certificates with course info
+      final certificatesData = await supabase
+          .from('certificates')
+          .select('''
+            *,
+            courses(
+              *,
+              teachers(
+                teacher_id,
+                user_id,
+                users(full_name)
+              )
+            )
+          ''')
+          .eq('student_id', studentId)
+          .order('issue_date', ascending: false);
+
+      // 3. Assessments for enrolled courses
+      final courseIds = (enrollmentsData as List)
+          .map((e) => e['course_id'] as int)
+          .toList();
+
+      List<dynamic> assessmentsData = [];
+      if (courseIds.isNotEmpty) {
+        assessmentsData = await supabase
+            .from('assessments')
+            .select('*, courses(title)')
+            .inFilter('course_id', courseIds)
+            .gte('dead_line', DateTime.now().toIso8601String())
+            .order('dead_line');
+      }
+
+      if (mounted) {
+        setState(() {
+          _enrollments = enrollmentsData;
+          _certificates = certificatesData;
+          _assessments = assessmentsData;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to load dashboard: $e')));
+      }
+    }
+  }
+
+  void _logout() {
     StudentSession.clear();
     Navigator.pushAndRemoveUntil(
       context,
@@ -18,12 +110,7 @@ class StudentDashboard extends StatelessWidget {
     );
   }
 
-  void _showCertificateDialog(
-    BuildContext context,
-    String course,
-    String instructor,
-    String date,
-  ) {
+  void _showCertificateDialog(String course, String instructor, String date) {
     showDialog(
       context: context,
       builder: (_) => Dialog(
@@ -108,8 +195,32 @@ class StudentDashboard extends StatelessWidget {
     );
   }
 
+  // --- Derived data helpers --------------------------------------------------
+  int get _activeCount => _enrollments
+      .where((e) => (e['progress'] as int) > 0 && (e['progress'] as int) < 100)
+      .length;
+
+  int get _completedCount =>
+      _enrollments.where((e) => (e['progress'] as int) == 100).length;
+
+  int get _certCount => _certificates.length;
+
+  int get _assessmentCount => _assessments.length;
+
+  List<dynamic> get _continueLearning => _enrollments
+      .where((e) => (e['progress'] as int) > 0 && (e['progress'] as int) < 100)
+      .toList();
+
+  // --------------------------------------------------------------------------
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        backgroundColor: Color(0xFFF6F7F9),
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return Scaffold(
       backgroundColor: const Color(0xFFF6F7F9),
       appBar: AppBar(
@@ -123,113 +234,114 @@ class StudentDashboard extends StatelessWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
-            onPressed: () => _logout(context),
+            onPressed: () => _logout(),
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Stats Grid
-            GridView.count(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisCount: 2,
-              mainAxisSpacing: 12,
-              crossAxisSpacing: 12,
-              childAspectRatio: 1.3,
-              children: [
-                _statCard(Icons.menu_book, Colors.blue, '2', 'Active Courses'),
-                _statCard(Icons.check_circle, Colors.green, '2', 'Completed'),
-                _statCard(
-                  Icons.emoji_events,
-                  Colors.purple,
-                  '2',
-                  'Certificates',
-                ),
-                _statCard(Icons.access_time, Colors.orange, '3', 'Assessments'),
-              ],
-            ),
-            const SizedBox(height: 24),
-            // Continue Learning
-            const Text(
-              'Continue Learning',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 12),
-            SizedBox(
-              height: 230,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
+      body: RefreshIndicator(
+        onRefresh: _loadDashboard,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Stats Grid
+              GridView.count(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                crossAxisCount: 2,
+                mainAxisSpacing: 12,
+                crossAxisSpacing: 12,
+                childAspectRatio: 1.3,
                 children: [
-                  _continueCard(
-                    context,
-                    getMockCourses().firstWhere((c) => c.id == 1),
-                    'Module 3 - React Hooks',
+                  _statCard(
+                    Icons.menu_book,
+                    Colors.blue,
+                    '$_activeCount',
+                    'Active Courses',
                   ),
-                  const SizedBox(width: 12),
-                  _continueCard(
-                    context,
-                    getMockCourses().firstWhere((c) => c.id == 2),
-                    'Module 2 - Control Flow',
+                  _statCard(
+                    Icons.check_circle,
+                    Colors.green,
+                    '$_completedCount',
+                    'Completed',
+                  ),
+                  _statCard(
+                    Icons.emoji_events,
+                    Colors.purple,
+                    '$_certCount',
+                    'Certificates',
+                  ),
+                  _statCard(
+                    Icons.access_time,
+                    Colors.orange,
+                    '$_assessmentCount',
+                    'Assessments',
                   ),
                 ],
               ),
-            ),
-            const SizedBox(height: 24),
-            // Pending Assessments
-            const Text(
-              'Pending Assessments',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 12),
-            _assessmentCard(
-              'Python for Data Science',
-              'Week 2 Assignment',
-              'Due: Apr 30, 2026',
-              'Due Soon',
-              Colors.red,
-            ),
-            const SizedBox(height: 10),
-            _assessmentCard(
-              'Introduction to React',
-              'Mid-term Quiz',
-              'Due: May 5, 2026',
-              'Upcoming',
-              Colors.orange,
-            ),
-            const SizedBox(height: 10),
-            _assessmentCard(
-              'Introduction to React',
-              'Final Project',
-              'Due: May 20, 2026',
-              '',
-              Colors.transparent,
-            ),
-            const SizedBox(height: 24),
-            // Certificates
-            const Text(
-              'Certificates',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 12),
-            _certificateTile(
-              context,
-              'UI/UX Design Fundamentals',
-              'Emma Williams',
-              'Mar 15, 2026',
-            ),
-            const SizedBox(height: 10),
-            _certificateTile(
-              context,
-              'Digital Marketing Mastery',
-              'James Taylor',
-              'Feb 10, 2026',
-            ),
-            const SizedBox(height: 24),
-          ],
+              const SizedBox(height: 24),
+              // Continue Learning
+              if (_continueLearning.isNotEmpty) ...[
+                const Text(
+                  'Continue Learning',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  height: 230,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    children: _continueLearning.map((enrollment) {
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 12),
+                        child: _continueCard(enrollment),
+                      );
+                    }).toList(),
+                  ),
+                ),
+                const SizedBox(height: 24),
+              ],
+              // Pending Assessments
+              if (_assessments.isNotEmpty) ...[
+                const Text(
+                  'Pending Assessments',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 12),
+                ..._assessments.asMap().entries.map((entry) {
+                  final index = entry.key;
+                  final a = entry.value;
+                  return Padding(
+                    padding: EdgeInsets.only(
+                      bottom: index < _assessments.length - 1 ? 10 : 0,
+                    ),
+                    child: _assessmentCard(a),
+                  );
+                }),
+                const SizedBox(height: 24),
+              ],
+              // Certificates
+              if (_certificates.isNotEmpty) ...[
+                const Text(
+                  'Certificates',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 12),
+                ..._certificates.asMap().entries.map((entry) {
+                  final index = entry.key;
+                  final cert = entry.value;
+                  return Padding(
+                    padding: EdgeInsets.only(
+                      bottom: index < _certificates.length - 1 ? 10 : 0,
+                    ),
+                    child: _certificateTile(cert),
+                  );
+                }),
+                const SizedBox(height: 24),
+              ],
+            ],
+          ),
         ),
       ),
     );
@@ -272,11 +384,25 @@ class StudentDashboard extends StatelessWidget {
     );
   }
 
-  Widget _continueCard(
-    BuildContext context,
-    CatalogCourse course,
-    String module,
-  ) {
+  Widget _continueCard(dynamic enrollment) {
+    final course = enrollment['courses'];
+    final progress = (enrollment['progress'] as int) / 100;
+    final title = course['title'] ?? 'Course';
+    final description = course['description'] ?? '';
+
+    final instructor = course['teachers']?['users']?['full_name'] ?? 'Unknown';
+    final courseObj = CatalogCourse(
+      id: course['course_id'] ?? 0,
+      title: title,
+      instructor: instructor,
+      description: description,
+      price: (course['price'] ?? 0).toDouble(),
+      progress: progress,
+      isPurchased: true,
+      lessons: const [],
+      assessments: const [],
+    );
+
     return Container(
       width: 280,
       padding: const EdgeInsets.all(16),
@@ -295,13 +421,17 @@ class StudentDashboard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            course.title,
+            title,
             style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
           const SizedBox(height: 6),
           Text(
-            module,
-            style: const TextStyle(color: Colors.grey, fontSize: 14),
+            description,
+            style: const TextStyle(color: Colors.grey, fontSize: 13),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
           const SizedBox(height: 16),
           Row(
@@ -312,7 +442,7 @@ class StudentDashboard extends StatelessWidget {
                 style: TextStyle(color: Colors.grey, fontSize: 14),
               ),
               Text(
-                '${(course.progress * 100).toInt()}%',
+                '${(progress * 100).toInt()}%',
                 style: const TextStyle(
                   color: Color(0xFF5B6FF5),
                   fontWeight: FontWeight.bold,
@@ -324,7 +454,7 @@ class StudentDashboard extends StatelessWidget {
           ClipRRect(
             borderRadius: BorderRadius.circular(4),
             child: LinearProgressIndicator(
-              value: course.progress,
+              value: progress,
               minHeight: 6,
               backgroundColor: Colors.grey.shade200,
               valueColor: const AlwaysStoppedAnimation(Color(0xFF5B6FF5)),
@@ -338,7 +468,7 @@ class StudentDashboard extends StatelessWidget {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => CourseDetailPage(course: course),
+                    builder: (_) => CourseDetailPage(course: courseObj),
                   ),
                 );
               },
@@ -358,13 +488,30 @@ class StudentDashboard extends StatelessWidget {
     );
   }
 
-  Widget _assessmentCard(
-    String course,
-    String title,
-    String due,
-    String badge,
-    Color badgeColor,
-  ) {
+  Widget _assessmentCard(dynamic assessment) {
+    final courseTitle = assessment['courses']?['title'] ?? 'Course';
+    final title = assessment['title'] ?? 'Assessment';
+    final deadline = assessment['dead_line'] != null
+        ? DateTime.tryParse(assessment['dead_line'])
+        : null;
+    final dueText = deadline != null
+        ? 'Due: ${_fmtDate(deadline)}'
+        : 'Due: TBD';
+
+    // Badge logic
+    String badge = '';
+    Color badgeColor = Colors.transparent;
+    if (deadline != null) {
+      final diff = deadline.difference(DateTime.now()).inDays;
+      if (diff <= 3) {
+        badge = 'Due Soon';
+        badgeColor = Colors.red;
+      } else if (diff <= 14) {
+        badge = 'Upcoming';
+        badgeColor = Colors.orange;
+      }
+    }
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -385,7 +532,7 @@ class StudentDashboard extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                course,
+                courseTitle,
                 style: const TextStyle(color: Colors.grey, fontSize: 14),
               ),
               if (badge.isNotEmpty)
@@ -420,7 +567,7 @@ class StudentDashboard extends StatelessWidget {
               Icon(Icons.access_time, size: 16, color: Colors.grey.shade600),
               const SizedBox(width: 6),
               Text(
-                due,
+                dueText,
                 style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
               ),
             ],
@@ -430,14 +577,17 @@ class StudentDashboard extends StatelessWidget {
     );
   }
 
-  Widget _certificateTile(
-    BuildContext context,
-    String title,
-    String instructor,
-    String date,
-  ) {
+  Widget _certificateTile(dynamic cert) {
+    final course = cert['courses'];
+    final title = course['title'] ?? 'Course';
+    final instructor = course['teachers']?['users']?['full_name'] ?? 'Unknown';
+    final issueDate = cert['issue_date'] != null
+        ? DateTime.tryParse(cert['issue_date'])
+        : null;
+    final dateText = issueDate != null ? _fmtDate(issueDate) : 'N/A';
+
     return GestureDetector(
-      onTap: () => _showCertificateDialog(context, title, instructor, date),
+      onTap: () => _showCertificateDialog(title, instructor, dateText),
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
@@ -485,5 +635,23 @@ class StudentDashboard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  String _fmtDate(DateTime d) {
+    final months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    return '${months[d.month - 1]} ${d.day}, ${d.year}';
   }
 }

@@ -1,13 +1,8 @@
-// --- Student Profile ---------------------------------------------------------
+// --- Student Profile (Database-driven) ---------------------------------------
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../DB.dart';
 import '../teacher_screens/teacher_login.dart';
-
-class StickyNote {
-  String text;
-  Color color;
-  StickyNote({required this.text, required this.color});
-}
 
 class StudentProfile extends StatefulWidget {
   const StudentProfile({super.key});
@@ -17,18 +12,12 @@ class StudentProfile extends StatefulWidget {
 }
 
 class _StudentProfileState extends State<StudentProfile> {
+  final supabase = Supabase.instance.client;
   int _selectedTab = 0; // 0 = Achievements, 1 = Notes
+  bool _isLoading = true;
 
-  final List<StickyNote> _notes = [
-    StickyNote(
-      text: 'Review React hooks chapter before exam',
-      color: const Color(0xFFFFF9C4),
-    ),
-    StickyNote(
-      text: 'Submit Python assignment by Friday',
-      color: const Color(0xFFFCE4EC),
-    ),
-  ];
+  List<dynamic> _notes = [];
+  List<dynamic> _activities = [];
 
   int? _editingIndex; // null = not editing, -1 = adding new
   final TextEditingController _editController = TextEditingController();
@@ -40,6 +29,48 @@ class _StudentProfileState extends State<StudentProfile> {
     Color(0xFFF3E5F5),
     Color(0xFFE8F5E9),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfileData();
+  }
+
+  Future<void> _loadProfileData() async {
+    final studentId = StudentSession.studentId;
+    if (studentId == null) {
+      setState(() => _isLoading = false);
+      return;
+    }
+
+    try {
+      final notesData = await supabase
+          .from('student_notes')
+          .select('*')
+          .eq('student_id', studentId)
+          .order('created_at', ascending: false);
+
+      final activitiesData = await supabase
+          .from('student_activities')
+          .select('*')
+          .order('activity_date', ascending: true);
+
+      if (mounted) {
+        setState(() {
+          _notes = notesData;
+          _activities = activitiesData;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to load profile: $e')));
+      }
+    }
+  }
 
   void _logout() {
     StudentSession.clear();
@@ -53,7 +84,7 @@ class _StudentProfileState extends State<StudentProfile> {
   void _startEdit(int index) {
     setState(() {
       _editingIndex = index;
-      _editController.text = _notes[index].text;
+      _editController.text = _notes[index]['content'] ?? '';
     });
   }
 
@@ -64,24 +95,43 @@ class _StudentProfileState extends State<StudentProfile> {
     });
   }
 
-  void _saveNote() {
+  Future<void> _saveNote() async {
     final text = _editController.text.trim();
     if (text.isEmpty) return;
 
-    setState(() {
+    final studentId = StudentSession.studentId;
+    if (studentId == null) return;
+
+    try {
       if (_editingIndex == -1) {
-        _notes.add(
-          StickyNote(
-            text: text,
-            color: _noteColors[_notes.length % _noteColors.length],
-          ),
+        // Insert new
+        final colorHex = _hexFromColor(
+          _noteColors[_notes.length % _noteColors.length],
         );
+        await supabase.from('student_notes').insert({
+          'student_id': studentId,
+          'content': text,
+          'color': colorHex,
+        });
       } else if (_editingIndex != null && _editingIndex! >= 0) {
-        _notes[_editingIndex!].text = text;
+        // Update existing
+        final noteId = _notes[_editingIndex!]['note_id'];
+        await supabase
+            .from('student_notes')
+            .update({'content': text})
+            .eq('note_id', noteId);
       }
-      _editingIndex = null;
+
       _editController.clear();
-    });
+      _editingIndex = null;
+      await _loadProfileData();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Save failed: $e')));
+      }
+    }
   }
 
   void _cancelEdit() {
@@ -91,8 +141,30 @@ class _StudentProfileState extends State<StudentProfile> {
     });
   }
 
-  void _deleteNote(int index) {
-    setState(() => _notes.removeAt(index));
+  Future<void> _deleteNote(int index) async {
+    final noteId = _notes[index]['note_id'];
+    try {
+      await supabase.from('student_notes').delete().eq('note_id', noteId);
+      await _loadProfileData();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Delete failed: $e')));
+      }
+    }
+  }
+
+  String _hexFromColor(Color color) {
+    return '#${color.value.toRadixString(16).padLeft(8, '0').toUpperCase()}';
+  }
+
+  Color _colorFromHex(String? hex) {
+    if (hex == null || hex.isEmpty) return const Color(0xFFFFF9C4);
+    final buffer = StringBuffer();
+    if (hex.length == 7) buffer.write('FF');
+    buffer.write(hex.replaceFirst('#', ''));
+    return Color(int.parse(buffer.toString(), radix: 16));
   }
 
   void _showCertificateDialog(String course, String instructor, String date) {
@@ -188,6 +260,13 @@ class _StudentProfileState extends State<StudentProfile> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        backgroundColor: Color(0xFFF6F7F9),
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return Scaffold(
       backgroundColor: const Color(0xFFF6F7F9),
       appBar: AppBar(
@@ -202,24 +281,27 @@ class _StudentProfileState extends State<StudentProfile> {
           IconButton(icon: const Icon(Icons.logout), onPressed: _logout),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.only(bottom: 24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildHeader(),
-            const SizedBox(height: 50),
-            _buildAboutCard(),
-            const SizedBox(height: 12),
-            _buildActivitiesCard(),
-            const SizedBox(height: 16),
-            _buildTabSwitcher(),
-            const SizedBox(height: 16),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: _selectedTab == 0 ? _buildAchievements() : _buildNotes(),
-            ),
-          ],
+      body: RefreshIndicator(
+        onRefresh: _loadProfileData,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.only(bottom: 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildHeader(),
+              const SizedBox(height: 50),
+              _buildAboutCard(),
+              const SizedBox(height: 12),
+              _buildActivitiesCard(),
+              const SizedBox(height: 16),
+              _buildTabSwitcher(),
+              const SizedBox(height: 16),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: _selectedTab == 0 ? _buildAchievements() : _buildNotes(),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -360,34 +442,41 @@ class _StudentProfileState extends State<StudentProfile> {
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
-            _activityTile(
-              Icons.bar_chart,
-              Colors.green,
-              'Math Olympiad',
-              'Conducted for classes 8-9',
-              'May 30, 2025',
-            ),
-            const SizedBox(height: 12),
-            _activityTile(
-              Icons.palette,
-              Colors.orange,
-              'Art Exhibition',
-              'Exhibition of new works',
-              'Jun 23, 2025',
-            ),
+            ..._activities.asMap().entries.map((entry) {
+              final index = entry.key;
+              final a = entry.value;
+              return Padding(
+                padding: EdgeInsets.only(
+                  bottom: index < _activities.length - 1 ? 12 : 0,
+                ),
+                child: _activityTile(a),
+              );
+            }),
           ],
         ),
       ),
     );
   }
 
-  Widget _activityTile(
-    IconData icon,
-    Color color,
-    String title,
-    String subtitle,
-    String date,
-  ) {
+  Widget _activityTile(dynamic activity) {
+    final title = activity['title'] ?? 'Activity';
+    final description = activity['description'] ?? '';
+    final dateStr = activity['activity_date'];
+    final date = dateStr != null ? DateTime.tryParse(dateStr) : null;
+    final dateText = date != null ? _fmtDate(date) : 'TBD';
+
+    // Simple icon mapping based on title keywords
+    IconData icon = Icons.event;
+    Color color = Colors.blue;
+    final t = title.toString().toLowerCase();
+    if (t.contains('math') || t.contains('olympiad')) {
+      icon = Icons.bar_chart;
+      color = Colors.green;
+    } else if (t.contains('art') || t.contains('exhibition')) {
+      icon = Icons.palette;
+      color = Colors.orange;
+    }
+
     return Row(
       children: [
         Container(
@@ -412,7 +501,7 @@ class _StudentProfileState extends State<StudentProfile> {
               ),
               const SizedBox(height: 4),
               Text(
-                subtitle,
+                description,
                 style: const TextStyle(color: Colors.grey, fontSize: 13),
               ),
               const SizedBox(height: 4),
@@ -425,7 +514,7 @@ class _StudentProfileState extends State<StudentProfile> {
                   ),
                   const SizedBox(width: 6),
                   Text(
-                    date,
+                    dateText,
                     style: const TextStyle(color: Colors.grey, fontSize: 13),
                   ),
                 ],
@@ -700,7 +789,7 @@ class _StudentProfileState extends State<StudentProfile> {
               final index = entry.key;
               final note = entry.value;
               if (_editingIndex == index) {
-                return _buildEditingCard(note.color);
+                return _buildEditingCard(_colorFromHex(note['color']));
               }
               return _buildNoteCard(note, index);
             }),
@@ -712,12 +801,13 @@ class _StudentProfileState extends State<StudentProfile> {
     );
   }
 
-  Widget _buildNoteCard(StickyNote note, int index) {
+  Widget _buildNoteCard(dynamic note, int index) {
+    final color = _colorFromHex(note['color']);
     return Container(
       width: (MediaQuery.of(context).size.width - 44) / 2,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: note.color,
+        color: color,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
@@ -731,7 +821,10 @@ class _StudentProfileState extends State<StudentProfile> {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(note.text, style: const TextStyle(fontSize: 14, height: 1.4)),
+          Text(
+            note['content'] ?? '',
+            style: const TextStyle(fontSize: 14, height: 1.4),
+          ),
           const SizedBox(height: 16),
           Row(
             children: [
@@ -878,6 +971,24 @@ class _StudentProfileState extends State<StudentProfile> {
         ),
       ),
     );
+  }
+
+  String _fmtDate(DateTime d) {
+    final months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    return '${months[d.month - 1]} ${d.day}, ${d.year}';
   }
 }
 
