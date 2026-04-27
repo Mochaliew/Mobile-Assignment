@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide User;
 
-import '../DB.dart';
+import '../db.dart';
 import 'admin_dashboard.dart';
 
 class AdminLogin extends StatefulWidget {

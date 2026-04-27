@@ -1,7 +1,7 @@
 // --- Teacher Login Screen ----------------------------------------------------
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide User;
-import '../DB.dart';
+import '../db.dart';
 import 'teacher_dashboard.dart';
 
 class TeacherLogin extends StatefulWidget {
