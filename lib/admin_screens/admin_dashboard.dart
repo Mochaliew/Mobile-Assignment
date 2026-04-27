@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../DB.dart';
+import '../db.dart';
 import 'admin_login.dart';
 import 'course_approval.dart';
 import 'manage_students.dart';

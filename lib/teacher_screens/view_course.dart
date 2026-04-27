@@ -1,7 +1,7 @@
 // --- View Course Screen ------------------------------------------------------
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide User;
-import '../DB.dart';
+import '../db.dart';
 import 'create_course.dart';
 import 'course_detail.dart';
 import 'create_lesson.dart';
