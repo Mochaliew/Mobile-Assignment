@@ -83,48 +83,50 @@ class _PurchaseSuccessOverlayState extends State<PurchaseSuccessOverlay>
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.black.withOpacity(0.6),
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          // Confetti particles
-          ..._particles.map((p) => _ConfettiWidget(particle: p)),
+    return SizedBox.expand(
+      child: Material(
+        color: Colors.black.withOpacity(0.6),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            // Confetti particles
+            ..._particles.map((p) => _ConfettiWidget(particle: p)),
 
-          // Checkmark and text
-          FadeTransition(
-            opacity: _checkOpacity,
-            child: ScaleTransition(
-              scale: _checkScale,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: const BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
+            // Checkmark and text
+            FadeTransition(
+              opacity: _checkOpacity,
+              child: ScaleTransition(
+                scale: _checkScale,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: const BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.check,
+                        color: Color(0xFF5B6FF5),
+                        size: 48,
+                      ),
                     ),
-                    child: const Icon(
-                      Icons.check,
-                      color: Color(0xFF5B6FF5),
-                      size: 48,
+                    const SizedBox(height: 20),
+                    const Text(
+                      'Payment Successful',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 20),
-                  const Text(
-                    'Payment Successful',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
