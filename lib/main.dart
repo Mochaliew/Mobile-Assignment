@@ -1,7 +1,7 @@
 // --- Main Entry Point --------------------------------------------------------
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'teacher_screens/teacher_login.dart';
+import 'home_page.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -18,13 +18,13 @@ class MainApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'E-Learning Teacher',
+      title: 'RSD E-Learning',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF5B6FF5)),
         useMaterial3: true,
       ),
-      home: const TeacherLogin(),
+      home: const HomePage(),
     );
   }
 }
