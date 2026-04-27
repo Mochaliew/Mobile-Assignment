@@ -310,7 +310,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
               _MenuCard(
                 icon: Icons.school,
                 title: 'Manage Courses',
-                subtitle: 'View all pending, approved and rejected courses',
+                subtitle: 'View and manage all pending, approved and rejected courses',
                 onTap: () {
                   Navigator.push(
                     context,
@@ -358,7 +358,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
               _MenuCard(
                 icon: Icons.settings,
                 title: 'System Settings',
-                subtitle: 'Platform branding, email and storage settings',
+                subtitle: 'Platform branding and storage settings',
                 onTap: () {
                   Navigator.push(
                     context,
