@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../DB.dart';
 import '../teacher_screens/teacher_login.dart';
 import 'course_detail_page.dart';
+import 'data/catalog_data.dart';
+import 'models/catalog_course.dart';
 
 class StudentDashboard extends StatelessWidget {
   const StudentDashboard({super.key});
@@ -164,16 +166,14 @@ class StudentDashboard extends StatelessWidget {
                 children: [
                   _continueCard(
                     context,
-                    'Introduction to React',
+                    getMockCourses().firstWhere((c) => c.id == 1),
                     'Module 3 - React Hooks',
-                    0.65,
                   ),
                   const SizedBox(width: 12),
                   _continueCard(
                     context,
-                    'Python Basics',
+                    getMockCourses().firstWhere((c) => c.id == 2),
                     'Module 2 - Control Flow',
-                    0.40,
                   ),
                 ],
               ),
@@ -274,9 +274,8 @@ class StudentDashboard extends StatelessWidget {
 
   Widget _continueCard(
     BuildContext context,
-    String title,
+    CatalogCourse course,
     String module,
-    double progress,
   ) {
     return Container(
       width: 280,
@@ -296,7 +295,7 @@ class StudentDashboard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            title,
+            course.title,
             style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 6),
@@ -313,7 +312,7 @@ class StudentDashboard extends StatelessWidget {
                 style: TextStyle(color: Colors.grey, fontSize: 14),
               ),
               Text(
-                '${(progress * 100).toInt()}%',
+                '${(course.progress * 100).toInt()}%',
                 style: const TextStyle(
                   color: Color(0xFF5B6FF5),
                   fontWeight: FontWeight.bold,
@@ -325,7 +324,7 @@ class StudentDashboard extends StatelessWidget {
           ClipRRect(
             borderRadius: BorderRadius.circular(4),
             child: LinearProgressIndicator(
-              value: progress,
+              value: course.progress,
               minHeight: 6,
               backgroundColor: Colors.grey.shade200,
               valueColor: const AlwaysStoppedAnimation(Color(0xFF5B6FF5)),
@@ -338,7 +337,9 @@ class StudentDashboard extends StatelessWidget {
               onPressed: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const CourseDetailPage()),
+                  MaterialPageRoute(
+                    builder: (_) => CourseDetailPage(course: course),
+                  ),
                 );
               },
               style: ElevatedButton.styleFrom(
