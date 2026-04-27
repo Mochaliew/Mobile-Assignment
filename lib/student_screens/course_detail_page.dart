@@ -1,5 +1,7 @@
 // --- Course Detail Page (Database-driven) ------------------------------------
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../DB.dart';
 import 'models/catalog_course.dart';
@@ -9,7 +11,7 @@ import 'widgets/purchase_success_overlay.dart';
 class CourseDetailPage extends StatefulWidget {
   final CatalogCourse course;
   final bool showPurchaseButton;
-  final VoidCallback? onPurchased;
+  final Future<void> Function()? onPurchased;
 
   const CourseDetailPage({
     super.key,
@@ -141,11 +143,11 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
     setState(() => _showingSuccess = true);
   }
 
-  void _onSuccessComplete() {
+  Future<void> _onSuccessComplete() async {
     if (widget.onPurchased != null) {
-      widget.onPurchased!();
+      await widget.onPurchased!();
     }
-    Navigator.pop(context, true);
+    if (mounted) Navigator.pop(context, true);
   }
 
   String _fmtDate(dynamic value) {
@@ -516,17 +518,42 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
     );
   }
 
-  void _openMaterial(dynamic file) {
+  Future<void> _openMaterial(dynamic file) async {
     final url = file['file_path'] as String?;
+    final fileName = file['file_name'] as String? ?? 'material.pdf';
     if (url == null || url.isEmpty) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('No file URL available')));
       return;
     }
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('Material URL: $url')));
+
+    final scaffold = ScaffoldMessenger.of(context);
+    scaffold.showSnackBar(
+      const SnackBar(content: Text('Downloading material...')),
+    );
+
+    try {
+      final request = await HttpClient().getUrl(Uri.parse(url));
+      final response = await request.close();
+
+      if (response.statusCode == 200) {
+        final bytes = await response.fold<List<int>>(
+          [],
+          (a, b) => a..addAll(b),
+        );
+        final dir = await getApplicationDocumentsDirectory();
+        final savePath = '${dir.path}/$fileName';
+        await File(savePath).writeAsBytes(bytes);
+        scaffold.showSnackBar(SnackBar(content: Text('Downloaded: $savePath')));
+      } else {
+        scaffold.showSnackBar(
+          const SnackBar(content: Text('Download failed: server error')),
+        );
+      }
+    } catch (e) {
+      scaffold.showSnackBar(SnackBar(content: Text('Download failed: $e')));
+    }
   }
 
   Widget _assessmentTile({

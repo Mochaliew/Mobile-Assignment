@@ -183,8 +183,9 @@ class _StudentCatalogState extends State<StudentCatalog> {
       ),
     );
 
+    // Refresh catalog if purchase happened (enrollment already inserted by onPurchased)
     if (purchased == true && mounted) {
-      _onCoursePurchased(course.id);
+      _loadCourses();
     }
   }
 

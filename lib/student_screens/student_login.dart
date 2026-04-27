@@ -74,9 +74,35 @@ class _StudentLoginState extends State<StudentLogin> {
         return;
       }
 
-      StudentSession.studentId = studentResponse['student_id'];
+      final sid = studentResponse['student_id'] as int;
+      StudentSession.studentId = sid;
       StudentSession.studentName = userResponse['full_name'] ?? '';
       StudentSession.studentEmail = userResponse['email'] ?? '';
+
+      // Track login history
+      try {
+        final today = DateTime.now();
+        final dateStr =
+            '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+        await supabase.from('student_login_history').upsert({
+          'student_id': sid,
+          'login_date': dateStr,
+          'login_time': today.toIso8601String(),
+        });
+      } catch (_) {}
+
+      // Start a new session for study-time tracking
+      try {
+        final now = DateTime.now();
+        final weekStart = now.subtract(Duration(days: now.weekday % 7));
+        final weekStr =
+            '${weekStart.year}-${weekStart.month.toString().padLeft(2, '0')}-${weekStart.day.toString().padLeft(2, '0')}';
+        await supabase.from('student_sessions').insert({
+          'student_id': sid,
+          'start_time': now.toIso8601String(),
+          'week_start_date': weekStr,
+        });
+      } catch (_) {}
 
       if (!mounted) return;
       Navigator.pushReplacement(

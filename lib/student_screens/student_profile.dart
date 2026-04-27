@@ -17,12 +17,15 @@ class _StudentProfileState extends State<StudentProfile> {
   bool _isLoading = true;
 
   List<dynamic> _notes = [];
-  List<dynamic> _activities = [];
   List<dynamic> _certificates = [];
 
   String _name = '';
   String _about = '';
   final String _className = 'Class 9A';
+
+  String _loginStreak = '0 days';
+  String _weeklyStudyHours = '0 hrs';
+  String _courseProgressPercent = '0%';
 
   int? _editingIndex; // null = not editing, -1 = adding new
   final TextEditingController _editController = TextEditingController();
@@ -61,11 +64,6 @@ class _StudentProfileState extends State<StudentProfile> {
           .eq('student_id', studentId)
           .order('created_at', ascending: false);
 
-      final activitiesData = await supabase
-          .from('student_activities')
-          .select('*')
-          .order('activity_date', ascending: true);
-
       final certificatesData = await supabase
           .from('certificates')
           .select('''
@@ -76,6 +74,75 @@ class _StudentProfileState extends State<StudentProfile> {
           .eq('student_id', studentId)
           .order('issue_date', ascending: false);
 
+      // Calculate login streak from student_login_history
+      String streakText = '0 days';
+      try {
+        final logins = await supabase
+            .from('student_login_history')
+            .select('login_date')
+            .eq('student_id', studentId)
+            .order('login_date', ascending: false);
+        final dates = logins
+            .map((l) => DateTime.parse(l['login_date'] as String))
+            .toList();
+        final today = DateTime(
+          DateTime.now().year,
+          DateTime.now().month,
+          DateTime.now().day,
+        );
+        int streak = 0;
+        for (int i = 0; i < dates.length; i++) {
+          final expected = today.subtract(Duration(days: i));
+          if (dates[i].year == expected.year &&
+              dates[i].month == expected.month &&
+              dates[i].day == expected.day) {
+            streak++;
+          } else {
+            break;
+          }
+        }
+        streakText = '$streak day${streak == 1 ? '' : 's'}';
+      } catch (_) {}
+
+      // Calculate weekly study time from student_sessions
+      String studyText = '0 hrs';
+      try {
+        final now = DateTime.now();
+        final weekStart = now.subtract(Duration(days: now.weekday % 7));
+        final sessions = await supabase
+            .from('student_sessions')
+            .select('duration_seconds')
+            .eq('student_id', studentId)
+            .gte('week_start_date', weekStart.toIso8601String());
+        final totalSeconds = sessions.fold<int>(
+          0,
+          (sum, s) => sum + ((s['duration_seconds'] ?? 0) as int),
+        );
+        final hours = totalSeconds / 3600;
+        studyText = '${hours.toStringAsFixed(1)} hrs';
+      } catch (_) {}
+
+      // Calculate overall progress: completed assessments / total assessments
+      String progressText = '0%';
+      try {
+        final totalRes = await supabase
+            .from('assessments')
+            .select('assessment_id');
+        final total = totalRes.length;
+
+        final completedRes = await supabase
+            .from('certificates')
+            .select('certificate_id')
+            .eq('student_id', studentId)
+            .not('assesment_id', 'is', null);
+        final completed = completedRes.length;
+
+        if (total > 0) {
+          final pct = ((completed / total) * 100).round();
+          progressText = '$pct%';
+        }
+      } catch (_) {}
+
       if (mounted) {
         setState(() {
           _name =
@@ -84,8 +151,10 @@ class _StudentProfileState extends State<StudentProfile> {
               'Student';
           _about = studentData?['about'] ?? '';
           _notes = notesData;
-          _activities = activitiesData;
           _certificates = certificatesData;
+          _loginStreak = streakText;
+          _weeklyStudyHours = studyText;
+          _courseProgressPercent = progressText;
           _isLoading = false;
         });
       }
@@ -99,8 +168,34 @@ class _StudentProfileState extends State<StudentProfile> {
     }
   }
 
-  void _logout() {
+  Future<void> _logout() async {
+    final studentId = StudentSession.studentId;
+    if (studentId != null) {
+      try {
+        final openSession = await supabase
+            .from('student_sessions')
+            .select('session_id, start_time')
+            .eq('student_id', studentId)
+            .isFilter('end_time', null)
+            .order('start_time', ascending: false)
+            .limit(1)
+            .maybeSingle();
+        if (openSession != null) {
+          final start = DateTime.parse(openSession['start_time'] as String);
+          final end = DateTime.now();
+          final duration = end.difference(start).inSeconds;
+          await supabase
+              .from('student_sessions')
+              .update({
+                'end_time': end.toIso8601String(),
+                'duration_seconds': duration,
+              })
+              .eq('session_id', openSession['session_id'] as int);
+        }
+      } catch (_) {}
+    }
     StudentSession.clear();
+    if (!mounted) return;
     Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(builder: (_) => const TeacherLogin()),
@@ -318,8 +413,6 @@ class _StudentProfileState extends State<StudentProfile> {
               _buildHeader(),
               const SizedBox(height: 50),
               _buildAboutCard(),
-              const SizedBox(height: 12),
-              _buildActivitiesCard(),
               const SizedBox(height: 16),
               _buildTabSwitcher(),
               const SizedBox(height: 16),
@@ -345,16 +438,7 @@ class _StudentProfileState extends State<StudentProfile> {
             width: double.infinity,
             color: const Color(0xFF5B6FF5),
             padding: const EdgeInsets.only(left: 16, top: 0),
-            child: const SafeArea(
-              child: Text(
-                'My profile',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
+            child: const SafeArea(child: SizedBox.shrink()),
           ),
           Positioned(
             bottom: 0,
@@ -445,115 +529,6 @@ class _StudentProfileState extends State<StudentProfile> {
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildActivitiesCard() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.04),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Upcoming activities',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 12),
-            ..._activities.asMap().entries.map((entry) {
-              final index = entry.key;
-              final a = entry.value;
-              return Padding(
-                padding: EdgeInsets.only(
-                  bottom: index < _activities.length - 1 ? 12 : 0,
-                ),
-                child: _activityTile(a),
-              );
-            }),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _activityTile(dynamic activity) {
-    final title = activity['title'] ?? 'Activity';
-    final description = activity['description'] ?? '';
-    final dateStr = activity['activity_date'];
-    final date = dateStr != null ? DateTime.tryParse(dateStr) : null;
-    final dateText = date != null ? _fmtDate(date) : 'TBD';
-
-    // Simple icon mapping based on title keywords
-    IconData icon = Icons.event;
-    Color color = Colors.blue;
-    final t = title.toString().toLowerCase();
-    if (t.contains('math') || t.contains('olympiad')) {
-      icon = Icons.bar_chart;
-      color = Colors.green;
-    } else if (t.contains('art') || t.contains('exhibition')) {
-      icon = Icons.palette;
-      color = Colors.orange;
-    }
-
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Icon(icon, color: color, size: 24),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                description,
-                style: const TextStyle(color: Colors.grey, fontSize: 13),
-              ),
-              const SizedBox(height: 4),
-              Row(
-                children: [
-                  const Icon(
-                    Icons.calendar_today,
-                    size: 14,
-                    color: Colors.grey,
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    dateText,
-                    style: const TextStyle(color: Colors.grey, fontSize: 13),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-        const Icon(Icons.more_vert, color: Colors.grey),
-      ],
     );
   }
 
@@ -668,19 +643,19 @@ class _StudentProfileState extends State<StudentProfile> {
               _statItem(
                 Icons.local_fire_department,
                 Colors.orange,
-                '12 days',
+                _loginStreak,
                 'Login Streak',
               ),
               _statItem(
                 Icons.access_time,
                 Colors.blue,
-                '8.5 hrs',
+                _weeklyStudyHours,
                 'Weekly Study\nTime',
               ),
               _statItem(
                 Icons.trending_up,
                 Colors.green,
-                '65%',
+                _courseProgressPercent,
                 'Course Progress',
               ),
             ],

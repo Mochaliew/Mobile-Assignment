@@ -146,13 +146,41 @@ class _StudentDashboardState extends State<StudentDashboard> {
     }
   }
 
-  void _logout() {
+  Future<void> _logout() async {
+    final studentId = StudentSession.studentId;
+    if (studentId != null) {
+      try {
+        final supabase = Supabase.instance.client;
+        final openSession = await supabase
+            .from('student_sessions')
+            .select('session_id, start_time')
+            .eq('student_id', studentId)
+            .isFilter('end_time', null)
+            .order('start_time', ascending: false)
+            .limit(1)
+            .maybeSingle();
+        if (openSession != null) {
+          final start = DateTime.parse(openSession['start_time'] as String);
+          final end = DateTime.now();
+          final duration = end.difference(start).inSeconds;
+          await supabase
+              .from('student_sessions')
+              .update({
+                'end_time': end.toIso8601String(),
+                'duration_seconds': duration,
+              })
+              .eq('session_id', openSession['session_id'] as int);
+        }
+      } catch (_) {}
+    }
     StudentSession.clear();
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (_) => const TeacherLogin()),
-      (route) => false,
-    );
+    if (mounted) {
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const TeacherLogin()),
+        (route) => false,
+      );
+    }
   }
 
   void _showCertificateDialog(String course, String instructor, String date) {
