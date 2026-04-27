@@ -95,8 +95,6 @@ class _CourseApprovalState extends State<CourseApproval> {
       ),
     );
 
-    reasonController.dispose();
-
     if (reason == null || reason.isEmpty) return;
 
     try {
@@ -106,10 +104,11 @@ class _CourseApprovalState extends State<CourseApproval> {
         'is_rejected': true,
         'rejection_reason': reason,
       }).eq('course_id', courseId);
+
       await addAuditLog('Rejected course ID: $courseId | Reason: $reason');
 
       showMessage('Course rejected successfully');
-      fetchPendingCourses();
+      await fetchPendingCourses();
     } catch (e) {
       showMessage('Reject failed: $e');
     }

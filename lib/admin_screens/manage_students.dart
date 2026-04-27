@@ -13,6 +13,8 @@ class _ManageStudentsState extends State<ManageStudents> {
 
   bool _isLoading = false;
   List<dynamic> students = [];
+  List<dynamic> allStudents = [];
+  String search = '';
 
   @override
   void initState() {
@@ -37,6 +39,7 @@ class _ManageStudentsState extends State<ManageStudents> {
           .order('student_id', ascending: false);
 
       setState(() {
+        allStudents = response;
         students = response;
       });
     } catch (e) {
@@ -88,45 +91,77 @@ class _ManageStudentsState extends State<ManageStudents> {
           ),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : students.isEmpty
-          ? const Center(child: Text('No students found.'))
-          : ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: students.length,
-        itemBuilder: (context, index) {
-          final student = students[index];
-          final user = student['users'];
-          final bool isActive = student['is_active'] == true;
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: TextField(
+              decoration: const InputDecoration(
+                hintText: 'Search student...',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.search),
+              ),
+              onChanged: (value) {
+                setState(() {
+                  search = value.toLowerCase();
 
-          return Card(
-            margin: const EdgeInsets.only(bottom: 14),
-            child: ListTile(
-              leading: CircleAvatar(
-                backgroundColor:
-                isActive ? Colors.green : Colors.red,
-                child: Icon(
-                  isActive ? Icons.check : Icons.close,
-                  color: Colors.white,
-                ),
-              ),
-              title: Text(user['full_name'] ?? 'Unknown Student'),
-              subtitle: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(user['email'] ?? ''),
-                  Text('Class: ${student['class_name'] ?? '-'}'),
-                  Text(isActive ? 'Status: Active' : 'Status: Inactive'),
-                ],
-              ),
-              trailing: FilledButton(
-                onPressed: () => toggleStudentStatus(student),
-                child: Text(isActive ? 'Deactivate' : 'Activate'),
-              ),
+                  students = allStudents.where((s) {
+                    final user = s['users'] ?? {};
+                    final name = (user['full_name'] ?? '').toString().toLowerCase();
+                    final email = (user['email'] ?? '').toString().toLowerCase();
+                    final className = (s['class_name'] ?? '').toString().toLowerCase();
+
+                    return name.contains(search) ||
+                      email.contains(search) ||
+                      className.contains(search);
+                  }).toList();
+                });
+              },
             ),
-          );
-        },
+          ),
+          Expanded(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : students.isEmpty
+                ? const Center(child: Text('No students found.'))
+                : ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: students.length,
+              itemBuilder: (context, index) {
+                final student = students[index];
+                final user = student['users'];
+                final bool isActive = student['is_active'] == true;
+
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 14),
+                  child: ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor:
+                      isActive ? Colors.green : Colors.red,
+                      child: Icon(
+                      isActive ? Icons.check : Icons.close,
+                      color: Colors.white,
+                      ),
+                    ),
+                    title: Text(user['full_name'] ?? 'Unknown Student'),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(user['email'] ?? ''),
+                        Text('Class: ${student['class_name'] ?? '-'}'),
+                        Text(isActive ? 'Status: Active' : 'Status: Inactive'),
+                      ],
+                    ),
+                    trailing: FilledButton(
+                      onPressed: () => toggleStudentStatus(student),
+                      child: Text(isActive ? 'Deactivate' : 'Activate'),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
