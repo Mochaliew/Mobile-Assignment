@@ -16,6 +16,8 @@ import 'approved_courses.dart';
 import 'rejected_courses.dart';
 import 'manage_courses.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'view_students.dart';
+import 'view_teachers.dart';
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -148,8 +150,24 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 mainAxisSpacing: 12,
                 childAspectRatio: 1.55,
                 children: [
-                  _StatCard('Total Teachers', totalTeachers, Colors.blue),
-                  _StatCard('Total Students', totalStudents, Colors.green),
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const ViewTeachersScreen()),
+                      );
+                    },
+                    child: _StatCard('Total Teachers', totalTeachers, Colors.blue),
+                  ),
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const ViewStudentsScreen()),
+                      );
+                    },
+                    child: _StatCard('Total Students', totalStudents, Colors.green),
+                  ),
                   _StatCard('Total Courses', totalCourses, Colors.orange),
                   GestureDetector(
                     onTap: () {
