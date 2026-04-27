@@ -13,34 +13,59 @@ class _EnrollmentManagementState extends State<EnrollmentManagement> {
 
   bool _isLoading = false;
   List<dynamic> enrollments = [];
-  String filter = 'All';
 
-  final filters = ['All', 'Paid', 'Unpaid'];
+  String selectedCourse = 'All Courses';
+  List<String> courseFilters = ['All Courses'];
 
   @override
   void initState() {
     super.initState();
+    fetchCourses();
     fetchEnrollments();
+  }
+
+  Future<void> fetchCourses() async {
+    try {
+      final response = await supabase
+          .from('courses')
+          .select('title')
+          .order('title', ascending: true);
+
+      setState(() {
+        courseFilters = [
+          'All Courses',
+          ...response.map<String>((c) => c['title'].toString()).toList(),
+        ];
+      });
+    } catch (e) {
+      showMessage('Error loading courses: $e');
+    }
   }
 
   Future<void> fetchEnrollments() async {
     setState(() => _isLoading = true);
 
     try {
-      var query = supabase.from('enrollments').select(
-          'enrollment_id, enrolled_at, payment_status, payment_method, amount_paid, students(users(full_name, email)), courses(title)');
+      var query = supabase.from('enrollments').select('''
+        enrollment_id,
+        enrolled_at,
+        users(full_name, email),
+        courses(title)
+      ''');
 
-      if (filter == 'Paid') {
-        query = query.eq('payment_status', true);
-      } else if (filter == 'Unpaid') {
-        query = query.eq('payment_status', false);
+      final response = await query.order('enrolled_at', ascending: false);
+
+      List<dynamic> filtered = response;
+
+      if (selectedCourse != 'All Courses') {
+        filtered = response.where((e) {
+          final course = e['courses'];
+          return course?['title'] == selectedCourse;
+        }).toList();
       }
 
-      final response =
-      await query.order('enrolled_at', ascending: false);
-
       setState(() {
-        enrollments = response;
+        enrollments = filtered;
       });
     } catch (e) {
       showMessage('Error loading enrollments: $e');
@@ -70,7 +95,10 @@ class _EnrollmentManagementState extends State<EnrollmentManagement> {
         foregroundColor: Colors.white,
         actions: [
           IconButton(
-            onPressed: fetchEnrollments,
+            onPressed: () {
+              fetchCourses();
+              fetchEnrollments();
+            },
             icon: const Icon(Icons.refresh),
           ),
         ],
@@ -80,24 +108,25 @@ class _EnrollmentManagementState extends State<EnrollmentManagement> {
           Padding(
             padding: const EdgeInsets.all(12),
             child: DropdownButtonFormField<String>(
-              value: filter,
+              value: selectedCourse,
               decoration: const InputDecoration(
-                labelText: 'Filter Payment',
+                labelText: 'Filter Course',
                 border: OutlineInputBorder(),
               ),
-              items: filters.map((f) {
+              items: courseFilters.map((course) {
                 return DropdownMenuItem(
-                  value: f,
-                  child: Text(f),
+                  value: course,
+                  child: Text(course),
                 );
               }).toList(),
               onChanged: (value) {
                 if (value == null) return;
-                setState(() => filter = value);
+                setState(() => selectedCourse = value);
                 fetchEnrollments();
               },
             ),
           ),
+
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
@@ -108,22 +137,15 @@ class _EnrollmentManagementState extends State<EnrollmentManagement> {
               itemCount: enrollments.length,
               itemBuilder: (context, index) {
                 final e = enrollments[index];
-                final student = e['students']?['users'];
+                final student = e['users'];
                 final course = e['courses'];
 
                 return Card(
                   margin: const EdgeInsets.only(bottom: 12),
                   child: ListTile(
-                    leading: CircleAvatar(
-                      backgroundColor: e['payment_status']
-                          ? Colors.green
-                          : Colors.red,
-                      child: Icon(
-                        e['payment_status']
-                            ? Icons.check
-                            : Icons.close,
-                        color: Colors.white,
-                      ),
+                    leading: const CircleAvatar(
+                      backgroundColor: Color(0xFF5B6FF5),
+                      child: Icon(Icons.school, color: Colors.white),
                     ),
                     title: Text(course?['title'] ?? 'Unknown Course'),
                     subtitle: Column(
@@ -131,18 +153,8 @@ class _EnrollmentManagementState extends State<EnrollmentManagement> {
                       children: [
                         Text('Student: ${student?['full_name'] ?? '-'}'),
                         Text('Email: ${student?['email'] ?? '-'}'),
-                        Text('Payment: ${e['payment_method'] ?? '-'}'),
                         Text('Date: ${formatDate(e['enrolled_at'])}'),
                       ],
-                    ),
-                    trailing: Text(
-                      'RM ${e['amount_paid'] ?? 0}',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: e['payment_status']
-                            ? Colors.green
-                            : Colors.red,
-                      ),
                     ),
                   ),
                 );

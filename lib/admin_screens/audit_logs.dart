@@ -29,10 +29,15 @@ class _AuditLogsScreenState extends State<AuditLogsScreen> {
     try {
       var query = supabase.from('audit_logs').select();
 
-      if (selectedModule != 'All') {
-        query = query.ilike('action', '%$selectedModule%');
+      if (selectedModule == 'Teacher') {
+        query = query.ilike('action', '%teacher account%');
+      } else if (selectedModule == 'Student') {
+        query = query.ilike('action', '%student account%');
+      } else if (selectedModule == 'Course') {
+        query = query.ilike('action', '%course%');
+      } else if (selectedModule == 'Category') {
+        query = query.ilike('action', '%category%');
       }
-
       final response = await query.order('timestamp', ascending: false).limit(200);
 
       setState(() {

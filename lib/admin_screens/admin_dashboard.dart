@@ -339,7 +339,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(builder: (_) => const ManageStudents()),
-                  );
+                  ).then((_) => fetchDashboard());
                 },
               ),
 

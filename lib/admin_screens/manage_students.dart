@@ -33,7 +33,7 @@ class _ManageStudentsState extends State<ManageStudents> {
     try {
       final response = await supabase
           .from('students')
-          .select('student_id, class_name, enrollment_date, users(id, full_name, email, lockout_end)')
+          .select('student_id, class_name, enrollment_date, is_active, users(id, full_name, email)')
           .order('student_id', ascending: false);
 
       setState(() {
@@ -48,15 +48,12 @@ class _ManageStudentsState extends State<ManageStudents> {
 
   Future<void> toggleStudentStatus(Map<String, dynamic> student) async {
     final user = student['users'];
-    final userId = user['id'];
-    final bool isActive = user['lockout_end'] == null;
+    final bool isActive = student['is_active'] == true;
 
     try {
-      await supabase.from('users').update({
-        'lockout_end': isActive
-            ? DateTime.now().add(const Duration(days: 36500)).toIso8601String()
-            : null,
-      }).eq('id', userId);
+      await supabase.from('students').update({
+        'is_active': !isActive,
+      }).eq('student_id', student['student_id']);
 
       await addAuditLog(
         isActive
@@ -101,7 +98,7 @@ class _ManageStudentsState extends State<ManageStudents> {
         itemBuilder: (context, index) {
           final student = students[index];
           final user = student['users'];
-          final bool isActive = user['lockout_end'] == null;
+          final bool isActive = student['is_active'] == true;
 
           return Card(
             margin: const EdgeInsets.only(bottom: 14),
