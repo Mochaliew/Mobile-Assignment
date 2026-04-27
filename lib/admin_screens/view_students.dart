@@ -26,7 +26,7 @@ class _ViewStudentsScreenState extends State<ViewStudentsScreen> {
     try {
       final response = await supabase
           .from('students')
-          .select('student_id, class_name, enrollment_date, users(full_name, email, lockout_end)')
+          .select('student_id, class_name, enrollment_date, is_active, users(full_name, email)')
           .order('student_id', ascending: false);
 
       setState(() => students = response);
@@ -43,12 +43,12 @@ class _ViewStudentsScreenState extends State<ViewStudentsScreen> {
       ..showSnackBar(SnackBar(content: Text(message)));
   }
 
-  String statusText(dynamic user) {
-    return user?['lockout_end'] == null ? 'Active' : 'Inactive';
+  String statusText(Map student) {
+    return student['is_active'] == true ? 'Active' : 'Inactive';
   }
 
-  Color statusColor(dynamic user) {
-    return user?['lockout_end'] == null ? Colors.green : Colors.red;
+  Color statusColor(Map student) {
+    return student['is_active'] == true ? Colors.green : Colors.red;
   }
 
   @override
@@ -78,7 +78,7 @@ class _ViewStudentsScreenState extends State<ViewStudentsScreen> {
             margin: const EdgeInsets.only(bottom: 12),
             child: ListTile(
               leading: CircleAvatar(
-                backgroundColor: statusColor(user),
+                backgroundColor: statusColor(student),
                 child: const Icon(Icons.person, color: Colors.white),
               ),
               title: Text(user?['full_name'] ?? 'Unknown Student'),
@@ -88,9 +88,9 @@ class _ViewStudentsScreenState extends State<ViewStudentsScreen> {
                   Text('Email: ${user?['email'] ?? '-'}'),
                   Text('Class: ${student['class_name'] ?? '-'}'),
                   Text(
-                    'Status: ${statusText(user)}',
+                    'Status: ${statusText(student)}',
                     style: TextStyle(
-                      color: statusColor(user),
+                      color: statusColor(student),
                       fontWeight: FontWeight.bold,
                     ),
                   ),

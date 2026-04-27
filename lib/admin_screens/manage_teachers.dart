@@ -13,6 +13,7 @@ class _ManageTeachersState extends State<ManageTeachers> {
 
   bool _isLoading = false;
   List<dynamic> teachers = [];
+  List<dynamic> allTeachers = [];
   String search = '';
 
   @override
@@ -36,15 +37,28 @@ class _ManageTeachersState extends State<ManageTeachers> {
           .from('teachers')
           .select('teacher_id, subject_area, is_active, users(id, full_name, email)');
 
-      if (search.isNotEmpty) {
-        query = query.ilike('users.full_name', '%$search%');
-      }
-
       final response = await query.order('teacher_id', ascending: false);
 
+      final filtered = search.isEmpty
+          ? response
+          : response.where((t) {
+        final user = t['users'] ?? {};
+        final name = (user['full_name'] ?? '').toString().toLowerCase();
+        final email = (user['email'] ?? '').toString().toLowerCase();
+        final keyword = search.toLowerCase();
+
+        return name.contains(keyword) || email.contains(keyword);
+      }).toList();
+
       setState(() {
+        teachers = filtered;
+      });
+
+      setState(() {
+        allTeachers = response;
         teachers = response;
       });
+
     } catch (e) {
       showMessage('Error loading teachers: $e');
     } finally {
@@ -233,8 +247,17 @@ class _ManageTeachersState extends State<ManageTeachers> {
                 prefixIcon: Icon(Icons.search),
               ),
               onChanged: (value) {
-                search = value;
-                fetchTeachers();
+                setState(() {
+                  search = value.toLowerCase();
+
+                  teachers = allTeachers.where((t) {
+                    final user = t['users'] ?? {};
+                    final name = (user['full_name'] ?? '').toLowerCase();
+                    final email = (user['email'] ?? '').toLowerCase();
+
+                    return name.contains(search) || email.contains(search);
+                  }).toList();
+                });
               },
             ),
           ),
@@ -248,7 +271,7 @@ class _ManageTeachersState extends State<ManageTeachers> {
               itemCount: teachers.length,
               itemBuilder: (context, index) {
                 final t = teachers[index];
-                final user = t['users'];
+                final user = t['users'] ?? {};
                 final bool isActive = t['is_active'] == true;
 
                 return Card(
@@ -266,7 +289,7 @@ class _ManageTeachersState extends State<ManageTeachers> {
                     subtitle: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(user['email'] ?? ''),
+                        Text(user['email'] ?? '-'),
                         Text('Subject: ${t['subject_area'] ?? '-'}'),
                         Text(isActive
                             ? 'Status: Active'
