@@ -1,8 +1,7 @@
 // --- Teacher Login Screen ----------------------------------------------------
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide User;
-import '../DB.dart';
-import '../student_screens/student_login.dart';
+import '../db.dart';
 import 'teacher_dashboard.dart';
 
 class TeacherLogin extends StatefulWidget {
@@ -191,26 +190,6 @@ class _TeacherLoginState extends State<TeacherLogin> {
                               ),
                             )
                           : const Text('Login', style: TextStyle(fontSize: 16)),
-                    ),
-                    const SizedBox(height: 16),
-                    Center(
-                      child: GestureDetector(
-                        onTap: () {
-                          Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const StudentLogin(),
-                            ),
-                          );
-                        },
-                        child: const Text(
-                          'Not a Teacher? Student Portal',
-                          style: TextStyle(
-                            color: Color(0xFF5B6FF5),
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
                     ),
                   ],
                 ),

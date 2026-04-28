@@ -1,7 +1,7 @@
 // --- Student Sign Up Screen --------------------------------------------------
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../DB.dart';
+import '../db.dart';
 import 'student_login.dart';
 import 'student_main_shell.dart';
 

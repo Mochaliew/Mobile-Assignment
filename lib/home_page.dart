@@ -1,6 +1,7 @@
 // --- Application Home Page ---------------------------------------------------
 import 'package:asgnmnt/admin_screens/admin_login.dart';
 import 'package:flutter/material.dart';
+import 'student_screens/student_login.dart';
 import 'teacher_screens/teacher_login.dart';
 
 class HomePage extends StatelessWidget {
@@ -57,8 +58,9 @@ class HomePage extends StatelessWidget {
               color: Colors.green,
               onTap: () {
                 Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Student Login coming soon!')),
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const StudentLogin()),
                 );
               },
             ),
@@ -82,12 +84,10 @@ class HomePage extends StatelessWidget {
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
-              borderRadius: BorderRadius.only(
-                bottomLeft: Radius.circular(60),
-              ),
+              borderRadius: BorderRadius.only(bottomLeft: Radius.circular(60)),
             ),
           ),
-          
+
           SafeArea(
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -107,13 +107,10 @@ class HomePage extends StatelessWidget {
                   const SizedBox(height: 16),
                   const Text(
                     'Access quality education from anywhere at any time. Our platform connects passionate teachers with eager students.',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Colors.white,
-                    ),
+                    style: TextStyle(fontSize: 16, color: Colors.white),
                   ),
                   const SizedBox(height: 60),
-                  
+
                   // Main Content Card
                   Container(
                     width: double.infinity,
@@ -134,19 +131,22 @@ class HomePage extends StatelessWidget {
                         const _FeatureItem(
                           icon: Icons.auto_stories,
                           title: 'Rich Content',
-                          desc: 'Dive into diverse course materials including videos and PDFs.',
+                          desc:
+                              'Dive into diverse course materials including videos and PDFs.',
                         ),
                         const Divider(height: 40),
                         const _FeatureItem(
                           icon: Icons.quiz,
                           title: 'Assessments',
-                          desc: 'Test your knowledge with interactive quizzes and exams.',
+                          desc:
+                              'Test your knowledge with interactive quizzes and exams.',
                         ),
                         const Divider(height: 40),
                         const _FeatureItem(
                           icon: Icons.workspace_premium,
                           title: 'Certificates',
-                          desc: 'Earn recognized certifications upon course completion.',
+                          desc:
+                              'Earn recognized certifications upon course completion.',
                         ),
                         const SizedBox(height: 40),
                         SizedBox(
@@ -164,7 +164,10 @@ class HomePage extends StatelessWidget {
                             ),
                             child: const Text(
                               'Get Started',
-                              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ),
                         ),
@@ -219,7 +222,10 @@ class _FeatureItem extends StatelessWidget {
             children: [
               Text(
                 title,
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               Text(
                 desc,

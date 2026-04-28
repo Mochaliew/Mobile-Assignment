@@ -1,7 +1,7 @@
 // --- Student Catalog (Database-driven) ---------------------------------------
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../DB.dart';
+import '../db.dart';
 import '../teacher_screens/teacher_login.dart';
 import 'course_detail_page.dart';
 import 'models/catalog_course.dart';

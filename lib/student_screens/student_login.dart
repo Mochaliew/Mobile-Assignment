@@ -1,8 +1,7 @@
 // --- Student Login Screen ----------------------------------------------------
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide User;
-import '../DB.dart';
-import '../teacher_screens/teacher_login.dart';
+import '../db.dart';
 import 'student_main_shell.dart';
 import 'student_signup.dart';
 
@@ -212,26 +211,6 @@ class _StudentLoginState extends State<StudentLogin> {
                           : const Text('Login', style: TextStyle(fontSize: 16)),
                     ),
                     const SizedBox(height: 16),
-                    Center(
-                      child: GestureDetector(
-                        onTap: () {
-                          Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const TeacherLogin(),
-                            ),
-                          );
-                        },
-                        child: const Text(
-                          'Not a Student? Teacher Portal',
-                          style: TextStyle(
-                            color: Color(0xFF5B6FF5),
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
                     Center(
                       child: GestureDetector(
                         onTap: () {
