@@ -35,7 +35,7 @@ class _ManageStudentsState extends State<ManageStudents> {
     try {
       final response = await supabase
           .from('students')
-          .select('student_id, class_name, enrollment_date, is_active, users(id, full_name, email)')
+          .select('student_id, enrollment_date, is_active, users(id, full_name, email)')
           .order('student_id', ascending: false);
 
       setState(() {
@@ -109,11 +109,9 @@ class _ManageStudentsState extends State<ManageStudents> {
                     final user = s['users'] ?? {};
                     final name = (user['full_name'] ?? '').toString().toLowerCase();
                     final email = (user['email'] ?? '').toString().toLowerCase();
-                    final className = (s['class_name'] ?? '').toString().toLowerCase();
 
                     return name.contains(search) ||
-                      email.contains(search) ||
-                      className.contains(search);
+                      email.contains(search);
                   }).toList();
                 });
               },
@@ -148,7 +146,6 @@ class _ManageStudentsState extends State<ManageStudents> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(user['email'] ?? ''),
-                        Text('Class: ${student['class_name'] ?? '-'}'),
                         Text(isActive ? 'Status: Active' : 'Status: Inactive'),
                       ],
                     ),

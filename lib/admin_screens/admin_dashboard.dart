@@ -334,7 +334,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
               _MenuCard(
                 icon: Icons.people,
                 title: 'Manage Students',
-                subtitle: 'Manage students, enrollments and accounts',
+                subtitle: 'Manage students accounts',
                 onTap: () {
                   Navigator.push(
                     context,
@@ -346,7 +346,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
               _MenuCard(
                 icon: Icons.person,
                 title: 'Manage Teachers',
-                subtitle: 'Manage teacher accounts and status',
+                subtitle: 'Manage teacher accounts',
                 onTap: () {
                   Navigator.push(
                     context,
