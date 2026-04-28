@@ -1,7 +1,7 @@
 // --- Create Assessment Screen ------------------------------------------------
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide User;
-import '../DB.dart';
+import '../db.dart';
 
 class CreateAssessment extends StatefulWidget {
   final int courseId;

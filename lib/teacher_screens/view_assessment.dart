@@ -1,7 +1,7 @@
 // --- View Assessment Screen --------------------------------------------------
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../DB.dart';
+import '../db.dart';
 
 class ViewAssessment extends StatelessWidget {
   final Assessment? assessment;

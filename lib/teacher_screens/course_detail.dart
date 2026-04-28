@@ -2,7 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide User;
 import 'package:intl/intl.dart';
-import '../DB.dart';
+import '../db.dart';
 import 'create_lesson.dart';
 import 'edit_lesson.dart';
 import 'create_assessment.dart';

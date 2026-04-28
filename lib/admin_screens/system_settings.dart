@@ -16,11 +16,7 @@ class _SystemSettingsScreenState extends State<SystemSettingsScreen> {
   final storageType = TextEditingController();
   final maxUploadSize = TextEditingController();
   final allowedFileTypes = TextEditingController();
-  final smtpHost = TextEditingController();
-  final smtpPort = TextEditingController();
-  final senderEmail = TextEditingController();
 
-  bool enableEmailNotification = true;
   bool _isLoading = false;
   int? systemSettingId;
 
@@ -28,6 +24,13 @@ class _SystemSettingsScreenState extends State<SystemSettingsScreen> {
   void initState() {
     super.initState();
     fetchSettings();
+  }
+
+  Future<void> addAuditLog(String action) async {
+    await supabase.from('audit_logs').insert({
+      'action': action,
+      'timestamp': DateTime.now().toIso8601String(),
+    });
   }
 
   Future<void> fetchSettings() async {
@@ -44,11 +47,6 @@ class _SystemSettingsScreenState extends State<SystemSettingsScreen> {
         storageType.text = response['storage_type'] ?? '';
         maxUploadSize.text = response['max_upload_size_mb'].toString();
         allowedFileTypes.text = response['allowed_file_types'] ?? '';
-        smtpHost.text = response['smtp_host'] ?? '';
-        smtpPort.text = response['smtp_port'].toString();
-        senderEmail.text = response['sender_email'] ?? '';
-        enableEmailNotification =
-            response['enable_email_notification'] ?? true;
       }
     } catch (e) {
       showMessage('Error loading settings: $e');
@@ -70,13 +68,12 @@ class _SystemSettingsScreenState extends State<SystemSettingsScreen> {
         'storage_type': storageType.text.trim(),
         'max_upload_size_mb': int.tryParse(maxUploadSize.text) ?? 50,
         'allowed_file_types': allowedFileTypes.text.trim(),
-        'enable_email_notification': enableEmailNotification,
-        'smtp_host': smtpHost.text.trim(),
-        'smtp_port': int.tryParse(smtpPort.text) ?? 587,
-        'sender_email': senderEmail.text.trim(),
       }).eq('system_setting_id', systemSettingId!);
 
+      await addAuditLog('Updated system settings');
+
       showMessage('System settings updated successfully');
+      Navigator.pop(context, true);
     } catch (e) {
       showMessage('Update failed: $e');
     }
@@ -95,9 +92,6 @@ class _SystemSettingsScreenState extends State<SystemSettingsScreen> {
     storageType.dispose();
     maxUploadSize.dispose();
     allowedFileTypes.dispose();
-    smtpHost.dispose();
-    smtpPort.dispose();
-    senderEmail.dispose();
     super.dispose();
   }
 
@@ -162,26 +156,6 @@ class _SystemSettingsScreenState extends State<SystemSettingsScreen> {
                 input('Storage Type', storageType),
                 input('Max Upload Size MB', maxUploadSize),
                 input('Allowed File Types', allowedFileTypes),
-
-                const SizedBox(height: 16),
-                const Text(
-                  'Email Notification',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Enable Email Notification'),
-                  value: enableEmailNotification,
-                  onChanged: (value) {
-                    setState(() => enableEmailNotification = value);
-                  },
-                ),
-                input('SMTP Host', smtpHost),
-                input('SMTP Port', smtpPort),
-                input('Sender Email', senderEmail),
 
                 const SizedBox(height: 20),
                 FilledButton.icon(

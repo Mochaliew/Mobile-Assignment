@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 
 class TransactionsScreen extends StatefulWidget {
   const TransactionsScreen({super.key});
@@ -13,6 +16,12 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
 
   bool _isLoading = false;
   List<dynamic> transactions = [];
+  String formatDate(String? value) {
+    if (value == null) return '-';
+    return value.replaceFirst('T', ' ').split('.').first;
+  }
+  String filter = 'All';
+  final filters = ['All', 'Paid', 'Unpaid'];
 
   @override
   void initState() {
@@ -20,16 +29,80 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     fetchTransactions();
   }
 
+  Future<File> createCSVFile() async {
+    String csv = 'Student,Email,Course,Amount,Payment Method,Status,Date\n';
+
+    for (var t in transactions) {
+      final enrollment = t['enrollments'];
+      final student = enrollment?['users'];
+      final course = enrollment?['courses'];
+      final status = t['payment_status'] == true ? 'Paid' : 'Unpaid';
+
+      csv +=
+      '${student?['full_name'] ?? ''},'
+          '${student?['email'] ?? ''},'
+          '${course?['title'] ?? ''},'
+          '${t['amount_paid'] ?? 0},'
+          '${t['payment_method'] ?? ''},'
+          '$status,'
+          '${t['transaction_date'] ?? ''}\n';
+    }
+
+    final dir = await getTemporaryDirectory();
+    final file = File(
+      '${dir.path}/transactions_${DateTime.now().millisecondsSinceEpoch}.csv',
+    );
+
+    return file.writeAsString(csv);
+  }
+
+  Future<void> shareCSV() async {
+    try {
+      final file = await createCSVFile();
+
+      await Share.shareXFiles(
+        [XFile(file.path)],
+        text: 'Transaction Report',
+      );
+    } catch (e) {
+      showMessage('Share failed: $e');
+    }
+  }
+
+  Future<void> downloadCSV() async {
+    try {
+      final csvFile = await createCSVFile();
+
+      final downloadDir = Directory('/storage/emulated/0/Download');
+      final savedFile = File(
+        '${downloadDir.path}/transactions_${DateTime.now().millisecondsSinceEpoch}.csv',
+      );
+
+      await savedFile.writeAsString(await csvFile.readAsString());
+
+      showMessage('Saved to Downloads folder');
+    } catch (e) {
+      showMessage('Download failed: $e');
+    }
+  }
+
   Future<void> fetchTransactions() async {
     setState(() => _isLoading = true);
 
     try {
-      final response = await supabase
-          .from('enrollments')
+      var query = supabase
+          .from('transaction')
           .select(
-          'enrollment_id, enrolled_at, payment_status, payment_method, amount_paid, students(users(full_name, email)), courses(title)')
-          .eq('payment_status', true)
-          .order('enrolled_at', ascending: false);
+        'transaction_id, payment_status, payment_method, amount_paid, transaction_date, enrollments(enrollment_id, users(full_name, email), courses(title))',
+      );
+
+      if (filter == 'Paid') {
+        query = query.eq('payment_status', true);
+      } else if (filter == 'Unpaid') {
+        query = query.eq('payment_status', false);
+      }
+
+      final response = await query.order('transaction_date', ascending: false);
 
       setState(() {
         transactions = response;
@@ -59,47 +132,85 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             onPressed: fetchTransactions,
             icon: const Icon(Icons.refresh),
           ),
+          IconButton(
+            onPressed: downloadCSV,
+            icon: const Icon(Icons.download),
+          ),
+          IconButton(
+            onPressed: shareCSV,
+            icon: const Icon(Icons.share),
+          ),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : transactions.isEmpty
-          ? const Center(child: Text('No transactions found.'))
-          : ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: transactions.length,
-        itemBuilder: (context, index) {
-          final t = transactions[index];
-          final student = t['students']?['users'];
-          final course = t['courses'];
-
-          return Card(
-            margin: const EdgeInsets.only(bottom: 14),
-            child: ListTile(
-              leading: const CircleAvatar(
-                backgroundColor: Color(0xFF5B6FF5),
-                child: Icon(Icons.payment, color: Colors.white),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: DropdownButtonFormField<String>(
+              value: filter,
+              decoration: const InputDecoration(
+                labelText: 'Filter Payment',
+                border: OutlineInputBorder(),
               ),
-              title: Text(course?['title'] ?? 'Unknown Course'),
-              subtitle: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Student: ${student?['full_name'] ?? 'Unknown'}'),
-                  Text('Email: ${student?['email'] ?? '-'}'),
-                  Text('Payment: ${t['payment_method'] ?? '-'}'),
-                  Text('Date: ${t['enrolled_at'] ?? '-'}'),
-                ],
-              ),
-              trailing: Text(
-                'RM ${t['amount_paid'] ?? 0}',
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: Colors.green,
-                ),
-              ),
+              items: filters.map((f) {
+                return DropdownMenuItem(value: f, child: Text(f));
+              }).toList(),
+              onChanged: (value) {
+                if (value == null) return;
+                setState(() => filter = value);
+                fetchTransactions();
+              },
             ),
-          );
-        },
+          ),
+          Expanded(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : transactions.isEmpty
+                ? const Center(child: Text('No transactions found.'))
+                : ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: transactions.length,
+              itemBuilder: (context, index) {
+                final t = transactions[index];
+                final enrollment = t['enrollments'];
+                final student = enrollment?['users'];
+                final course = enrollment?['courses'];
+                final isPaid = t['payment_status'] == true;
+
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 14),
+                  child: ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor: isPaid ? Colors.green : Colors.red,
+                      child: Icon(
+                        isPaid ? Icons.check : Icons.close,
+                        color: Colors.white,
+                      ),
+                    ),
+                    title: Text(course?['title'] ?? 'Unknown Course'),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Student: ${student?['full_name'] ?? 'Unknown'}'),
+                        Text('Email: ${student?['email'] ?? '-'}'),
+                        Text('Payment: ${t['payment_method'] ?? '-'}'),
+                        Text('Status: ${isPaid ? 'Paid' : 'Unpaid'}'),
+                        Text('Date: ${formatDate(t['transaction_date'])}'),
+                      ],
+                    ),
+                    trailing: Text(
+                      'RM ${t['amount_paid'] ?? 0}',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: isPaid ? Colors.green : Colors.red,
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }

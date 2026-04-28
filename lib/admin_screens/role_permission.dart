@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 class RolePermissionScreen extends StatelessWidget {
   const RolePermissionScreen({super.key});
 
-  final List<Map<String, dynamic>> roles = const [
+  static List<Map<String, dynamic>> roles = const [
     {
       'role': 'Admin',
       'icon': Icons.admin_panel_settings,

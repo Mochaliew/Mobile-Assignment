@@ -22,6 +22,13 @@ class _CategoryManagementState extends State<CategoryManagement> {
     fetchCategories();
   }
 
+  Future<void> addAuditLog(String action) async {
+    await supabase.from('audit_logs').insert({
+      'action': action,
+      'timestamp': DateTime.now().toIso8601String(),
+    });
+  }
+
   Future<void> fetchCategories() async {
     setState(() => _isLoading = true);
 
@@ -55,7 +62,7 @@ class _CategoryManagementState extends State<CategoryManagement> {
 
     final name = await showDialog<String>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Add Category'),
         content: TextField(
           controller: controller,
@@ -65,16 +72,14 @@ class _CategoryManagementState extends State<CategoryManagement> {
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
           FilledButton(
-            onPressed: () => Navigator.pop(context, controller.text.trim()),
+            onPressed: () => Navigator.pop(dialogContext, controller.text.trim()),
             child: const Text('Add'),
           ),
         ],
       ),
     );
-
-    controller.dispose();
 
     if (name == null || name.isEmpty) return;
 
@@ -83,9 +88,10 @@ class _CategoryManagementState extends State<CategoryManagement> {
         'name': name,
         'is_deleted': false,
       });
+      await addAuditLog('Created category: $name');
 
       showMessage('Category added');
-      fetchCategories();
+      await fetchCategories();
     } catch (e) {
       showMessage('Add failed: $e');
     }
@@ -96,7 +102,7 @@ class _CategoryManagementState extends State<CategoryManagement> {
 
     final name = await showDialog<String>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Edit Category'),
         content: TextField(
           controller: controller,
@@ -106,16 +112,17 @@ class _CategoryManagementState extends State<CategoryManagement> {
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
           FilledButton(
-            onPressed: () => Navigator.pop(context, controller.text.trim()),
+            onPressed: () => Navigator.pop(dialogContext, controller.text.trim()),
             child: const Text('Save'),
           ),
         ],
       ),
     );
-
-    controller.dispose();
 
     if (name == null || name.isEmpty) return;
 
@@ -124,9 +131,10 @@ class _CategoryManagementState extends State<CategoryManagement> {
           .from('categories')
           .update({'name': name})
           .eq('category_id', category['category_id']);
+      await addAuditLog('Edited category: ${category['name']} to $name');
 
       showMessage('Category updated');
-      fetchCategories();
+      await fetchCategories();
     } catch (e) {
       showMessage('Update failed: $e');
     }
@@ -138,9 +146,10 @@ class _CategoryManagementState extends State<CategoryManagement> {
           .from('categories')
           .update({'is_deleted': true})
           .eq('category_id', id);
+      await addAuditLog('Deleted category ID: $id');
 
       showMessage('Category deleted');
-      fetchCategories();
+      await fetchCategories();
     } catch (e) {
       showMessage('Delete failed: $e');
     }
@@ -152,9 +161,10 @@ class _CategoryManagementState extends State<CategoryManagement> {
           .from('categories')
           .update({'is_deleted': false})
           .eq('category_id', id);
+      await addAuditLog('Restored category ID: $id');
 
       showMessage('Category restored');
-      fetchCategories();
+      await fetchCategories();
     } catch (e) {
       showMessage('Restore failed: $e');
     }

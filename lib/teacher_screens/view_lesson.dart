@@ -2,7 +2,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide User;
 import 'package:intl/intl.dart';
-import '../DB.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../db.dart';
 import 'create_lesson.dart';
 import 'edit_lesson.dart';
 
@@ -23,6 +24,21 @@ class _ViewLessonState extends State<ViewLesson> {
     ScaffoldMessenger.of(context)
       ..clearSnackBars()
       ..showSnackBar(SnackBar(content: Text(s), backgroundColor: c));
+  }
+
+  Future<void> _launchURL(String url) async {
+    final uri = Uri.tryParse(url);
+    if (uri == null) {
+      snackbar('Invalid URL', Colors.red);
+      return;
+    }
+    try {
+      if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+        snackbar('Could not launch $url', Colors.red);
+      }
+    } catch (e) {
+      snackbar('Error launching URL: $e', Colors.red);
+    }
   }
 
   @override
@@ -196,25 +212,34 @@ class _ViewLessonState extends State<ViewLesson> {
                                     style: const TextStyle(
                                         color: Colors.grey, fontSize: 12)),
                               if (lesson.meetLink.isNotEmpty)
-                                const Text('🔗 Meeting link attached',
-                                    style: TextStyle(
-                                        color: Color(0xFF5B6FF5), fontSize: 12)),
+                                InkWell(
+                                  onTap: () => _launchURL(lesson.meetLink),
+                                  child: const Text('🔗 Meeting link attached (Click to join)',
+                                      style: TextStyle(
+                                          color: Color(0xFF5B6FF5), fontSize: 12, decoration: TextDecoration.underline)),
+                                ),
                               if (lesson.scheduleDate != null)
                                 Text(
                                     '📅 ${DateFormat('MMM dd, yyyy hh:mm a').format(lesson.scheduleDate!)}',
                                     style: const TextStyle(
                                         color: Colors.grey, fontSize: 12)),
                               if (lesson.files.isNotEmpty)
-                                ...lesson.files.map((f) => Row(children: [
-                                  Text(
-                                      f.fileType == 'pdf' ? '📄 PDF' : '🎥 Video',
-                                      style: const TextStyle(fontSize: 12)),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                      '• ${DateFormat('MMM dd, yyyy').format(f.uploadedAt)}',
-                                      style: const TextStyle(
-                                          color: Colors.grey, fontSize: 11)),
-                                ])),
+                                ...lesson.files.map((f) => InkWell(
+                                  onTap: () => _launchURL(f.filePath),
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(vertical: 4),
+                                    child: Row(children: [
+                                      Text(
+                                          f.fileType == 'pdf' ? '📄 PDF' : '🎥 Video',
+                                          style: const TextStyle(fontSize: 12, color: Color(0xFF5B6FF5), decoration: TextDecoration.underline)),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                          '• ${DateFormat('MMM dd, yyyy').format(f.uploadedAt)}',
+                                          style: const TextStyle(
+                                              color: Colors.grey, fontSize: 11)),
+                                    ]),
+                                  ),
+                                )),
                             ],
                           ),
                         )).toList(),

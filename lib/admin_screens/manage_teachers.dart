@@ -13,12 +13,20 @@ class _ManageTeachersState extends State<ManageTeachers> {
 
   bool _isLoading = false;
   List<dynamic> teachers = [];
+  List<dynamic> allTeachers = [];
   String search = '';
 
   @override
   void initState() {
     super.initState();
     fetchTeachers();
+  }
+
+  Future<void> addAuditLog(String action) async {
+    await supabase.from('audit_logs').insert({
+      'action': action,
+      'timestamp': DateTime.now().toIso8601String(),
+    });
   }
 
   Future<void> fetchTeachers() async {
@@ -29,19 +37,153 @@ class _ManageTeachersState extends State<ManageTeachers> {
           .from('teachers')
           .select('teacher_id, subject_area, is_active, users(id, full_name, email)');
 
-      if (search.isNotEmpty) {
-        query = query.ilike('users.full_name', '%$search%');
-      }
-
       final response = await query.order('teacher_id', ascending: false);
 
+      final filtered = search.isEmpty
+          ? response
+          : response.where((t) {
+        final user = t['users'] ?? {};
+        final name = (user['full_name'] ?? '').toString().toLowerCase();
+        final email = (user['email'] ?? '').toString().toLowerCase();
+        final keyword = search.toLowerCase();
+
+        return name.contains(keyword) || email.contains(keyword);
+      }).toList();
+
       setState(() {
+        teachers = filtered;
+      });
+
+      setState(() {
+        allTeachers = response;
         teachers = response;
       });
+
     } catch (e) {
       showMessage('Error loading teachers: $e');
     } finally {
       setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> createTeacher() async {
+    final nameController = TextEditingController();
+    final emailController = TextEditingController();
+    final passwordController = TextEditingController();
+    final subjectController = TextEditingController();
+
+    final result = await showDialog<Map<String, String>>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Create Teacher Account'),
+        content: SingleChildScrollView(
+          child: Column(
+            children: [
+              TextField(
+                controller: nameController,
+                decoration: const InputDecoration(
+                  labelText: 'Full Name',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: emailController,
+                decoration: const InputDecoration(
+                  labelText: 'Email',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: passwordController,
+                obscureText: true,
+                decoration: const InputDecoration(
+                  labelText: 'Password',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: subjectController,
+                decoration: const InputDecoration(
+                  labelText: 'Subject Area',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(dialogContext, {
+                'name': nameController.text.trim(),
+                'email': emailController.text.trim(),
+                'password': passwordController.text.trim(),
+                'subject': subjectController.text.trim(),
+              });
+            },
+            child: const Text('Create'),
+          ),
+        ],
+      ),
+    );
+
+    if (result == null) return;
+
+    final name = result['name']!;
+    final email = result['email']!;
+    final password = result['password']!;
+    final subject = result['subject']!;
+
+    if (name.isEmpty || email.isEmpty || password.isEmpty || subject.isEmpty) {
+      showMessage('Please fill in all fields.');
+      return;
+    }
+
+    try {
+      final existingUser = await supabase
+          .from('users')
+          .select()
+          .eq('email', email)
+          .maybeSingle();
+
+      if (existingUser != null) {
+        showMessage('Email already exists.');
+        return;
+      }
+
+      final userResponse = await supabase
+          .from('users')
+          .insert({
+        'full_name': name,
+        'email': email,
+        'password_hash': password,
+        'role': 'Teacher',
+        'created_at': DateTime.now().toIso8601String(),
+      })
+          .select()
+          .single();
+
+      final userId = userResponse['id'];
+
+      await supabase.from('teachers').insert({
+        'user_id': userId,
+        'subject_area': subject,
+        'is_active': true,
+      });
+
+      await addAuditLog('Created teacher account: $email');
+
+      showMessage('Teacher account created successfully.');
+      await fetchTeachers();
+    } catch (e) {
+      showMessage('Create teacher failed: $e');
     }
   }
 
@@ -54,8 +196,14 @@ class _ManageTeachersState extends State<ManageTeachers> {
         'is_active': !isActive,
       }).eq('teacher_id', teacher['teacher_id']);
 
+      await addAuditLog(
+        isActive
+            ? 'Deactivated teacher account: ${teacher['users']['email']}'
+            : 'Activated teacher account: ${teacher['users']['email']}',
+      );
+
       showMessage(isActive ? 'Teacher deactivated' : 'Teacher activated');
-      fetchTeachers();
+      await fetchTeachers();
     } catch (e) {
       showMessage('Update failed: $e');
     }
@@ -81,6 +229,13 @@ class _ManageTeachersState extends State<ManageTeachers> {
           ),
         ],
       ),
+
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: createTeacher,
+        icon: const Icon(Icons.add),
+        label: const Text('Create Teacher'),
+      ),
+
       body: Column(
         children: [
           Padding(
@@ -92,8 +247,17 @@ class _ManageTeachersState extends State<ManageTeachers> {
                 prefixIcon: Icon(Icons.search),
               ),
               onChanged: (value) {
-                search = value;
-                fetchTeachers();
+                setState(() {
+                  search = value.toLowerCase();
+
+                  teachers = allTeachers.where((t) {
+                    final user = t['users'] ?? {};
+                    final name = (user['full_name'] ?? '').toLowerCase();
+                    final email = (user['email'] ?? '').toLowerCase();
+
+                    return name.contains(search) || email.contains(search);
+                  }).toList();
+                });
               },
             ),
           ),
@@ -107,7 +271,7 @@ class _ManageTeachersState extends State<ManageTeachers> {
               itemCount: teachers.length,
               itemBuilder: (context, index) {
                 final t = teachers[index];
-                final user = t['users'];
+                final user = t['users'] ?? {};
                 final bool isActive = t['is_active'] == true;
 
                 return Card(
@@ -125,7 +289,7 @@ class _ManageTeachersState extends State<ManageTeachers> {
                     subtitle: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(user['email'] ?? ''),
+                        Text(user['email'] ?? '-'),
                         Text('Subject: ${t['subject_area'] ?? '-'}'),
                         Text(isActive
                             ? 'Status: Active'

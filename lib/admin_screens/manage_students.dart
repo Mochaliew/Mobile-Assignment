@@ -13,11 +13,20 @@ class _ManageStudentsState extends State<ManageStudents> {
 
   bool _isLoading = false;
   List<dynamic> students = [];
+  List<dynamic> allStudents = [];
+  String search = '';
 
   @override
   void initState() {
     super.initState();
     fetchStudents();
+  }
+
+  Future<void> addAuditLog(String action) async {
+    await supabase.from('audit_logs').insert({
+      'action': action,
+      'timestamp': DateTime.now().toIso8601String(),
+    });
   }
 
   Future<void> fetchStudents() async {
@@ -26,10 +35,11 @@ class _ManageStudentsState extends State<ManageStudents> {
     try {
       final response = await supabase
           .from('students')
-          .select('student_id, class_name, enrollment_date, users(id, full_name, email, lockout_end)')
+          .select('student_id, class_name, enrollment_date, is_active, users(id, full_name, email)')
           .order('student_id', ascending: false);
 
       setState(() {
+        allStudents = response;
         students = response;
       });
     } catch (e) {
@@ -41,16 +51,21 @@ class _ManageStudentsState extends State<ManageStudents> {
 
   Future<void> toggleStudentStatus(Map<String, dynamic> student) async {
     final user = student['users'];
-    final userId = user['id'];
-    final bool isActive = user['lockout_end'] == null;
+    final bool isActive = student['is_active'] == true;
 
     try {
-      await supabase.from('users').update({
-        'lockout_end': isActive ? DateTime.now().add(const Duration(days: 36500)).toIso8601String() : null,
-      }).eq('id', userId);
+      await supabase.from('students').update({
+        'is_active': !isActive,
+      }).eq('student_id', student['student_id']);
+
+      await addAuditLog(
+        isActive
+            ? 'Deactivated student account: ${user['email']}'
+            : 'Activated student account: ${user['email']}',
+      );
 
       showMessage(isActive ? 'Student deactivated' : 'Student activated');
-      fetchStudents();
+      await fetchStudents();
     } catch (e) {
       showMessage('Update failed: $e');
     }
@@ -76,45 +91,77 @@ class _ManageStudentsState extends State<ManageStudents> {
           ),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : students.isEmpty
-          ? const Center(child: Text('No students found.'))
-          : ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: students.length,
-        itemBuilder: (context, index) {
-          final student = students[index];
-          final user = student['users'];
-          final bool isActive = user['lockout_end'] == null;
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: TextField(
+              decoration: const InputDecoration(
+                hintText: 'Search student...',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.search),
+              ),
+              onChanged: (value) {
+                setState(() {
+                  search = value.toLowerCase();
 
-          return Card(
-            margin: const EdgeInsets.only(bottom: 14),
-            child: ListTile(
-              leading: CircleAvatar(
-                backgroundColor:
-                isActive ? Colors.green : Colors.red,
-                child: Icon(
-                  isActive ? Icons.check : Icons.close,
-                  color: Colors.white,
-                ),
-              ),
-              title: Text(user['full_name'] ?? 'Unknown Student'),
-              subtitle: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(user['email'] ?? ''),
-                  Text('Class: ${student['class_name'] ?? '-'}'),
-                  Text(isActive ? 'Status: Active' : 'Status: Inactive'),
-                ],
-              ),
-              trailing: FilledButton(
-                onPressed: () => toggleStudentStatus(student),
-                child: Text(isActive ? 'Deactivate' : 'Activate'),
-              ),
+                  students = allStudents.where((s) {
+                    final user = s['users'] ?? {};
+                    final name = (user['full_name'] ?? '').toString().toLowerCase();
+                    final email = (user['email'] ?? '').toString().toLowerCase();
+                    final className = (s['class_name'] ?? '').toString().toLowerCase();
+
+                    return name.contains(search) ||
+                      email.contains(search) ||
+                      className.contains(search);
+                  }).toList();
+                });
+              },
             ),
-          );
-        },
+          ),
+          Expanded(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : students.isEmpty
+                ? const Center(child: Text('No students found.'))
+                : ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: students.length,
+              itemBuilder: (context, index) {
+                final student = students[index];
+                final user = student['users'];
+                final bool isActive = student['is_active'] == true;
+
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 14),
+                  child: ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor:
+                      isActive ? Colors.green : Colors.red,
+                      child: Icon(
+                      isActive ? Icons.check : Icons.close,
+                      color: Colors.white,
+                      ),
+                    ),
+                    title: Text(user['full_name'] ?? 'Unknown Student'),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(user['email'] ?? ''),
+                        Text('Class: ${student['class_name'] ?? '-'}'),
+                        Text(isActive ? 'Status: Active' : 'Status: Inactive'),
+                      ],
+                    ),
+                    trailing: FilledButton(
+                      onPressed: () => toggleStudentStatus(student),
+                      child: Text(isActive ? 'Deactivate' : 'Activate'),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }

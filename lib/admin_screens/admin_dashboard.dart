@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../DB.dart';
+import '../db.dart';
 import 'admin_login.dart';
 import 'course_approval.dart';
 import 'manage_students.dart';
@@ -12,6 +12,13 @@ import 'audit_logs.dart';
 import 'manage_teachers.dart';
 import 'role_permission.dart';
 import 'enrollment_management.dart';
+import 'approved_courses.dart';
+import 'rejected_courses.dart';
+import 'manage_courses.dart';
+import 'package:fl_chart/fl_chart.dart';
+import 'view_students.dart';
+import 'view_teachers.dart';
+import 'view_courses.dart';
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -42,21 +49,27 @@ class _AdminDashboardState extends State<AdminDashboard> {
     setState(() => _isLoading = true);
 
     try {
-      final teachers = await supabase.from('teachers').select();
-      final students = await supabase.from('students').select();
-      final courses = await supabase.from('courses').select();
+      final teachers = await supabase.from('teachers').select('teacher_id');
+      final students = await supabase.from('students').select('student_id');
+      final courses = await supabase.from('courses').select('course_id');
+
       final pending = await supabase
           .from('courses')
-          .select()
+          .select('course_id')
           .eq('is_approved', false)
           .eq('is_rejected', false);
+
       final approved = await supabase
           .from('courses')
-          .select()
+          .select('course_id')
           .eq('is_approved', true)
           .eq('is_rejected', false);
-      final rejected =
-      await supabase.from('courses').select().eq('is_rejected', true);
+
+      final rejected = await supabase
+          .from('courses')
+          .select('course_id')
+          .eq('is_rejected', true);
+
       final logs = await supabase
           .from('audit_logs')
           .select()
@@ -138,10 +151,44 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 mainAxisSpacing: 12,
                 childAspectRatio: 1.55,
                 children: [
-                  _StatCard('Total Teachers', totalTeachers, Colors.blue),
-                  _StatCard('Total Students', totalStudents, Colors.green),
-                  _StatCard('Total Courses', totalCourses, Colors.orange),
-                  _StatCard('Pending Courses', pendingCourses, Colors.amber),
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const ViewTeachersScreen()),
+                      );
+                    },
+                    child: _StatCard('Total Teachers', totalTeachers, Colors.blue),
+                  ),
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const ViewStudentsScreen()),
+                      );
+                    },
+                    child: _StatCard('Total Students', totalStudents, Colors.green),
+                  ),
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const ViewCoursesScreen()),
+                      );
+                    },
+                    child: _StatCard('Total Courses', totalCourses, Colors.orange),
+                  ),
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const CourseApproval(),
+                        ),
+                      ).then((_) => fetchDashboard());
+                    },
+                    child: _StatCard('Pending Courses', pendingCourses, Colors.amber),
+                  ),
                 ],
               ),
 
@@ -156,21 +203,100 @@ class _AdminDashboardState extends State<AdminDashboard> {
               Row(
                 children: [
                   Expanded(
-                    child: _MiniStatusCard(
-                      title: 'Approved',
-                      value: approvedCourses,
-                      color: Colors.green,
+                    child: GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const ApprovedCoursesScreen(),
+                          ),
+                        ).then((_) => fetchDashboard());
+                      },
+                      child: _MiniStatusCard(
+                        title: 'Approved',
+                        value: approvedCourses,
+                        color: Colors.green,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: _MiniStatusCard(
-                      title: 'Rejected',
-                      value: rejectedCourses,
-                      color: Colors.red,
+                    child: GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const RejectedCoursesScreen(),
+                          ),
+                        ).then((_) => fetchDashboard());
+                      },
+                      child: _MiniStatusCard(
+                        title: 'Rejected',
+                        value: rejectedCourses,
+                        color: Colors.red,
+                      ),
                     ),
                   ),
                 ],
+              ),
+
+              const SizedBox(height: 24),
+
+              const Text(
+                'Course Analytics',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+
+              const SizedBox(height: 12),
+
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: SizedBox(
+                    height: 220,
+                    child: PieChart(
+                      PieChartData(
+                        sectionsSpace: 3,
+                        centerSpaceRadius: 45,
+                        sections: [
+                          PieChartSectionData(
+                            value: pendingCourses.toDouble(),
+                            title: 'Pending\n$pendingCourses',
+                            color: Colors.orange,
+                            radius: 60,
+                            titleStyle: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                          PieChartSectionData(
+                            value: approvedCourses.toDouble(),
+                            title: 'Approved\n$approvedCourses',
+                            color: Colors.green,
+                            radius: 60,
+                            titleStyle: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                          PieChartSectionData(
+                            value: rejectedCourses.toDouble(),
+                            title: 'Rejected\n$rejectedCourses',
+                            color: Colors.red,
+                            radius: 60,
+                            titleStyle: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
               ),
 
               const SizedBox(height: 24),
@@ -184,13 +310,11 @@ class _AdminDashboardState extends State<AdminDashboard> {
               _MenuCard(
                 icon: Icons.school,
                 title: 'Manage Courses',
-                subtitle: 'Approve, publish and monitor courses',
+                subtitle: 'View and manage all pending, approved and rejected courses',
                 onTap: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(
-                      builder: (_) => const CourseApproval(),
-                    ),
+                    MaterialPageRoute(builder: (_) => const ManageCoursesScreen()),
                   ).then((_) => fetchDashboard());
                 },
               ),
@@ -215,7 +339,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(builder: (_) => const ManageStudents()),
-                  );
+                  ).then((_) => fetchDashboard());
                 },
               ),
 
@@ -234,7 +358,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
               _MenuCard(
                 icon: Icons.settings,
                 title: 'System Settings',
-                subtitle: 'Platform branding, email and storage settings',
+                subtitle: 'Platform branding and storage settings',
                 onTap: () {
                   Navigator.push(
                     context,

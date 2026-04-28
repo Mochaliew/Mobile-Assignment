@@ -462,43 +462,6 @@ class Enrollment {
   );
 }
 
-// --- Promo Code --------------------------------------------------------------
-class PromoCode {
-  final int promoCodeId;
-  final String code;
-  final int discountPercent;
-  final DateTime startDate;
-  final DateTime expiryDate;
-  final bool isActive;
-  final int maxUsage;
-  final int usedCount;
-  final DateTime createdAt;
-
-  PromoCode({
-    required this.promoCodeId,
-    required this.code,
-    required this.discountPercent,
-    required this.startDate,
-    required this.expiryDate,
-    required this.isActive,
-    required this.maxUsage,
-    required this.usedCount,
-    required this.createdAt,
-  });
-
-  factory PromoCode.fromJson(Map<String, dynamic> map) => PromoCode(
-    promoCodeId: map['promo_code_id'],
-    code: map['code'] ?? '',
-    discountPercent: map['discount_percent'] ?? 0,
-    startDate: DateTime.tryParse(map['start_date'] ?? '') ?? DateTime.now(),
-    expiryDate: DateTime.tryParse(map['expiry_date'] ?? '') ?? DateTime.now(),
-    isActive: map['is_active'] ?? true,
-    maxUsage: map['max_usage'] ?? 100,
-    usedCount: map['used_count'] ?? 0,
-    createdAt: DateTime.tryParse(map['created_at'] ?? '') ?? DateTime.now(),
-  );
-}
-
 // --- Payment Transaction -----------------------------------------------------
 class PaymentTransaction {
   final int paymentTransactionId;

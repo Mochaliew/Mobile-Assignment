@@ -41,6 +41,13 @@ class _CourseApprovalState extends State<CourseApproval> {
     }
   }
 
+  Future<void> addAuditLog(String action) async {
+    await supabase.from('audit_logs').insert({
+      'action': action,
+      'timestamp': DateTime.now().toIso8601String(),
+    });
+  }
+
   Future<void> approveCourse(int courseId) async {
     try {
       await supabase.from('courses').update({
@@ -49,6 +56,7 @@ class _CourseApprovalState extends State<CourseApproval> {
         'is_rejected': false,
         'rejection_reason': null,
       }).eq('course_id', courseId);
+      await addAuditLog('Approved course ID: $courseId');
 
       showMessage('Course approved successfully');
       fetchPendingCourses();
@@ -62,7 +70,7 @@ class _CourseApprovalState extends State<CourseApproval> {
 
     final reason = await showDialog<String>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Reject Course'),
         content: TextField(
           controller: reasonController,
@@ -74,20 +82,18 @@ class _CourseApprovalState extends State<CourseApproval> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Cancel'),
           ),
           FilledButton(
             onPressed: () {
-              Navigator.pop(context, reasonController.text.trim());
+              Navigator.pop(dialogContext, reasonController.text.trim());
             },
             child: const Text('Reject'),
           ),
         ],
       ),
     );
-
-    reasonController.dispose();
 
     if (reason == null || reason.isEmpty) return;
 
@@ -99,8 +105,10 @@ class _CourseApprovalState extends State<CourseApproval> {
         'rejection_reason': reason,
       }).eq('course_id', courseId);
 
+      await addAuditLog('Rejected course ID: $courseId | Reason: $reason');
+
       showMessage('Course rejected successfully');
-      fetchPendingCourses();
+      await fetchPendingCourses();
     } catch (e) {
       showMessage('Reject failed: $e');
     }
