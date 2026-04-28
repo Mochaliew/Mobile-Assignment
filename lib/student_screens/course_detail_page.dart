@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../DB.dart';
 import 'models/catalog_course.dart';
 import 'widgets/assessment_quiz_dialog.dart';
@@ -34,6 +35,51 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
   dynamic _finalExam;
   Set<int> _completedAssessmentIds = {};
   Map<int, dynamic> _filesByLessonId = {};
+
+  Future<void> _openMeetLink(String meetLink) async {
+    final trimmedLink = meetLink.trim();
+    final linkWithScheme = trimmedLink.startsWith(RegExp(r'https?://'))
+        ? trimmedLink
+        : 'https://$trimmedLink';
+    final uri = Uri.tryParse(linkWithScheme);
+
+    if (uri == null || !uri.hasScheme || uri.host.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Invalid GMeet link')));
+      return;
+    }
+
+    try {
+      final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+
+      if (!opened && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not open GMeet link')),
+        );
+      }
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open GMeet link')),
+      );
+    }
+  }
+
+  String _safeFileName(String fileName) {
+    final sanitized = fileName.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_').trim();
+    return sanitized.isEmpty ? 'material.pdf' : sanitized;
+  }
+
+  Future<Directory> _downloadedMaterialsDir() async {
+    final documentsDir = await getApplicationDocumentsDirectory();
+    final downloadsDir = Directory('${documentsDir.path}/downloaded_materials');
+    if (!await downloadsDir.exists()) {
+      await downloadsDir.create(recursive: true);
+    }
+    return downloadsDir;
+  }
 
   @override
   void initState() {
@@ -453,11 +499,7 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
             children: [
               if (meetLink != null && meetLink.isNotEmpty)
                 ElevatedButton.icon(
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Opening GMeet: $meetLink')),
-                    );
-                  },
+                  onPressed: () => _openMeetLink(meetLink),
                   icon: const Icon(Icons.video_call, size: 18),
                   label: const Text('Go to GMeet'),
                   style: ElevatedButton.styleFrom(
@@ -491,17 +533,16 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
           ),
           if (file != null) ...[
             const SizedBox(height: 12),
-            GestureDetector(
-              onTap: () => _openMaterial(file),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.insert_drive_file,
-                    size: 18,
-                    color: Color(0xFF5B6FF5),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
+            Row(
+              children: [
+                const Icon(
+                  Icons.insert_drive_file,
+                  size: 18,
+                  color: Color(0xFF5B6FF5),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
                     'Material: ${file['file_name'] ?? 'File'}',
                     style: const TextStyle(
                       fontSize: 13,
@@ -509,8 +550,26 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
                       fontWeight: FontWeight.w500,
                     ),
                   ),
-                ],
-              ),
+                ),
+                TextButton.icon(
+                  onPressed: () => _viewMaterial(file),
+                  icon: const Icon(Icons.visibility_outlined, size: 16),
+                  label: const Text('View'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: const Color(0xFF5B6FF5),
+                    textStyle: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => _downloadMaterial(file, lessonTitle: title),
+                  icon: const Icon(Icons.download_outlined, size: 20),
+                  color: const Color(0xFF5B6FF5),
+                  tooltip: 'Download',
+                ),
+              ],
             ),
           ],
         ],
@@ -518,9 +577,40 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
     );
   }
 
-  Future<void> _openMaterial(dynamic file) async {
+  Future<void> _viewMaterial(dynamic file) async {
     final url = file['file_path'] as String?;
-    final fileName = file['file_name'] as String? ?? 'material.pdf';
+    final uri = url == null ? null : Uri.tryParse(url);
+
+    if (uri == null || !uri.hasScheme) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('No file URL available')));
+      return;
+    }
+
+    try {
+      final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!opened && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not open this material')),
+        );
+      }
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open this material')),
+      );
+    }
+  }
+
+  Future<void> _downloadMaterial(
+    dynamic file, {
+    required String lessonTitle,
+  }) async {
+    final url = file['file_path'] as String?;
+    final fileName = _safeFileName(
+      file['file_name'] as String? ?? 'material.pdf',
+    );
     if (url == null || url.isEmpty) {
       ScaffoldMessenger.of(
         context,
@@ -542,10 +632,12 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
           [],
           (a, b) => a..addAll(b),
         );
-        final dir = await getApplicationDocumentsDirectory();
+        final dir = await _downloadedMaterialsDir();
         final savePath = '${dir.path}/$fileName';
         await File(savePath).writeAsBytes(bytes);
-        scaffold.showSnackBar(SnackBar(content: Text('Downloaded: $savePath')));
+        scaffold.showSnackBar(
+          SnackBar(content: Text('Downloaded "$fileName" from $lessonTitle')),
+        );
       } else {
         scaffold.showSnackBar(
           const SnackBar(content: Text('Download failed: server error')),

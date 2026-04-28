@@ -5,6 +5,7 @@ import '../db.dart';
 import '../teacher_screens/teacher_login.dart';
 import 'course_detail_page.dart';
 import 'models/catalog_course.dart';
+import 'student_session_tracker.dart';
 
 class StudentCatalog extends StatefulWidget {
   const StudentCatalog({super.key});
@@ -113,8 +114,15 @@ class _StudentCatalogState extends State<StudentCatalog> {
     }
   }
 
-  void _logout() {
+  Future<void> _logout() async {
+    final studentId = StudentSession.studentId;
+    if (studentId != null) {
+      try {
+        await StudentSessionTracker.endCurrentSession(studentId);
+      } catch (_) {}
+    }
     StudentSession.clear();
+    if (!mounted) return;
     Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(builder: (_) => const TeacherLogin()),

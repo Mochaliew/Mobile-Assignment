@@ -1,8 +1,11 @@
 // --- Student Main Shell (Bottom Navigation) ----------------------------------
 import 'package:flutter/material.dart';
+import '../db.dart';
+import 'downloaded_materials.dart';
 import 'student_dashboard.dart';
 import 'student_catalog.dart';
 import 'student_profile.dart';
+import 'student_session_tracker.dart';
 
 class StudentMainShell extends StatefulWidget {
   const StudentMainShell({super.key});
@@ -11,10 +14,41 @@ class StudentMainShell extends StatefulWidget {
   State<StudentMainShell> createState() => _StudentMainShellState();
 }
 
-class _StudentMainShellState extends State<StudentMainShell> {
+class _StudentMainShellState extends State<StudentMainShell>
+    with WidgetsBindingObserver {
   int _currentIndex = 0;
 
-  final _pages = const [StudentDashboard(), StudentCatalog(), StudentProfile()];
+  final _pages = const [
+    StudentDashboard(),
+    StudentCatalog(),
+    DownloadedMaterials(),
+    StudentProfile(),
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final studentId = StudentSession.studentId;
+    if (studentId == null) return;
+
+    if (state == AppLifecycleState.resumed) {
+      StudentSessionTracker.startSession(studentId);
+    } else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      StudentSessionTracker.endCurrentSession(studentId);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -36,6 +70,11 @@ class _StudentMainShellState extends State<StudentMainShell> {
             icon: Icon(Icons.menu_book_outlined),
             activeIcon: Icon(Icons.menu_book),
             label: 'Catalog',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.download_outlined),
+            activeIcon: Icon(Icons.download),
+            label: 'Downloads',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.person_outline),
