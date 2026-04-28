@@ -1,13 +1,14 @@
 // --- Assessment Quiz Dialog --------------------------------------------------
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../DB.dart';
+import '../../db.dart';
 
 class AssessmentQuizDialog extends StatefulWidget {
   final int assessmentId;
   final int courseId;
   final String assessmentTitle;
   final int passingMark;
+  final bool isFinalExam;
 
   const AssessmentQuizDialog({
     super.key,
@@ -15,6 +16,7 @@ class AssessmentQuizDialog extends StatefulWidget {
     required this.courseId,
     required this.assessmentTitle,
     required this.passingMark,
+    this.isFinalExam = false,
   });
 
   @override
@@ -34,6 +36,8 @@ class _AssessmentQuizDialogState extends State<AssessmentQuizDialog> {
   bool _finished = false;
   bool _passed = false;
   bool _saving = false;
+  bool _certificateAwarded = false;
+  String? _certificateError;
 
   @override
   void initState() {
@@ -43,11 +47,17 @@ class _AssessmentQuizDialogState extends State<AssessmentQuizDialog> {
 
   Future<void> _loadQuestions() async {
     try {
-      final data = await supabase
-          .from('assessment_questions')
-          .select('*')
-          .eq('assessment_id', widget.assessmentId)
-          .order('question_id');
+      final data = widget.isFinalExam
+          ? await supabase
+                .from('final_questions')
+                .select('*')
+                .eq('final_id', widget.assessmentId)
+                .order('final_question_id')
+          : await supabase
+                .from('assessment_questions')
+                .select('*')
+                .eq('assessment_id', widget.assessmentId)
+                .order('question_id');
 
       if (mounted) {
         setState(() {
@@ -113,53 +123,95 @@ class _AssessmentQuizDialogState extends State<AssessmentQuizDialog> {
 
   Future<void> _awardCertificate() async {
     final studentId = StudentSession.studentId;
-    if (studentId == null) return;
+    if (studentId == null) {
+      setState(() {
+        _certificateAwarded = false;
+        _certificateError =
+            'Certificate could not be created because the student session was not found. Please log in again.';
+      });
+      return;
+    }
 
     setState(() => _saving = true);
     try {
-      // Check if certificate already exists for this student + assessment
+      await _createCertificate(studentId);
+      if (mounted) {
+        setState(() {
+          _certificateAwarded = true;
+          _certificateError = null;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _certificateAwarded = false;
+          _certificateError = 'Certificate could not be created: $e';
+        });
+      }
+    }
+    try {
+      await _recordSubmission(studentId, passed: true);
+    } catch (_) {}
+    if (mounted) setState(() => _saving = false);
+  }
+
+  Future<void> _createCertificate(int studentId) async {
+    final baseCertificate = <String, dynamic>{
+      'student_id': studentId,
+      'course_id': widget.courseId,
+      'issue_date': DateTime.now().toIso8601String(),
+    };
+
+    try {
+      final existingQuery = supabase
+          .from('certificates')
+          .select('certificate_id')
+          .eq('student_id', studentId)
+          .eq('course_id', widget.courseId);
+      final existing = widget.isFinalExam
+          ? await existingQuery.isFilter('assesment_id', null).maybeSingle()
+          : await existingQuery
+                .eq('assesment_id', widget.assessmentId)
+                .maybeSingle();
+
+      if (existing != null) return;
+
+      final certificate = Map<String, dynamic>.from(baseCertificate);
+      if (!widget.isFinalExam) {
+        certificate['assesment_id'] = widget.assessmentId;
+      }
+      await supabase.from('certificates').insert(certificate);
+    } catch (_) {
       final existing = await supabase
           .from('certificates')
           .select('certificate_id')
           .eq('student_id', studentId)
-          .eq('assesment_id', widget.assessmentId)
+          .eq('course_id', widget.courseId)
           .maybeSingle();
-
       if (existing == null) {
-        await supabase.from('certificates').insert({
-          'student_id': studentId,
-          'course_id': widget.courseId,
-          'assesment_id': widget.assessmentId,
-          'issue_date': DateTime.now().toIso8601String(),
-        });
+        await supabase.from('certificates').insert(baseCertificate);
       }
-
-      // Record submission
-      await supabase.from('assessment_submissions').insert({
-        'student_id': studentId,
-        'assessment_id': widget.assessmentId,
-        'score': _score,
-        'passed': true,
-        'submitted_at': DateTime.now().toIso8601String(),
-      });
-    } catch (e) {
-      // Ignore errors
     }
-    if (mounted) setState(() => _saving = false);
   }
 
   Future<void> _recordFailure() async {
     final studentId = StudentSession.studentId;
     if (studentId == null) return;
     try {
-      await supabase.from('assessment_submissions').insert({
-        'student_id': studentId,
-        'assessment_id': widget.assessmentId,
-        'score': _score,
-        'passed': false,
-        'submitted_at': DateTime.now().toIso8601String(),
-      });
+      await _recordSubmission(studentId, passed: false);
     } catch (_) {}
+  }
+
+  Future<void> _recordSubmission(int studentId, {required bool passed}) async {
+    if (widget.isFinalExam) return;
+
+    await supabase.from('assessment_submissions').insert({
+      'student_id': studentId,
+      'assessment_id': widget.assessmentId,
+      'score': _score,
+      'passed': passed,
+      'submitted_at': DateTime.now().toIso8601String(),
+    });
   }
 
   @override
@@ -396,7 +448,12 @@ class _AssessmentQuizDialogState extends State<AssessmentQuizDialog> {
         const SizedBox(height: 8),
         Text(
           _passed
-              ? 'You passed the assessment! A certificate has been awarded.'
+              ? _saving
+                    ? 'You passed the assessment! Creating certificate...'
+                    : _certificateAwarded
+                    ? 'You passed the assessment! A certificate has been awarded.'
+                    : _certificateError ??
+                          'You passed the assessment, but the certificate has not been created yet.'
               : 'You did not meet the passing score of ${widget.passingMark}%.',
           textAlign: TextAlign.center,
           style: TextStyle(

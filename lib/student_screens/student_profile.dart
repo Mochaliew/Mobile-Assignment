@@ -66,15 +66,27 @@ class _StudentProfileState extends State<StudentProfile> {
           .eq('student_id', studentId)
           .order('created_at', ascending: false);
 
-      final certificatesData = await supabase
-          .from('certificates')
-          .select('''
-            *,
-            courses(title, teachers(user_id, users(full_name))),
-            assessments(title)
-          ''')
-          .eq('student_id', studentId)
-          .order('issue_date', ascending: false);
+      List<dynamic> certificatesData = [];
+      try {
+        certificatesData = await supabase
+            .from('certificates')
+            .select('''
+              *,
+              courses(title, teachers(user_id, users(full_name))),
+              assessments(title)
+            ''')
+            .eq('student_id', studentId)
+            .order('issue_date', ascending: false);
+      } catch (_) {
+        certificatesData = await supabase
+            .from('certificates')
+            .select('''
+              *,
+              courses(title, teachers(user_id, users(full_name)))
+            ''')
+            .eq('student_id', studentId)
+            .order('issue_date', ascending: false);
+      }
 
       // Calculate login streak from student_login_history
       String streakText = '0 days';

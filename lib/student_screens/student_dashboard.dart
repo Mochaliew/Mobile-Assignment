@@ -89,22 +89,41 @@ class _StudentDashboardState extends State<StudentDashboard> {
       }
 
       // 2. Certificates with course + assessment info
-      final certificatesData = await supabase
-          .from('certificates')
-          .select('''
-            *,
-            courses(
+      List<dynamic> certificatesData = [];
+      try {
+        certificatesData = await supabase
+            .from('certificates')
+            .select('''
               *,
-              teachers(
-                teacher_id,
-                user_id,
-                users(full_name)
+              courses(
+                *,
+                teachers(
+                  teacher_id,
+                  user_id,
+                  users(full_name)
+                )
+              ),
+              assessments(title)
+            ''')
+            .eq('student_id', studentId)
+            .order('issue_date', ascending: false);
+      } catch (_) {
+        certificatesData = await supabase
+            .from('certificates')
+            .select('''
+              *,
+              courses(
+                *,
+                teachers(
+                  teacher_id,
+                  user_id,
+                  users(full_name)
+                )
               )
-            ),
-            assessments(title)
-          ''')
-          .eq('student_id', studentId)
-          .order('issue_date', ascending: false);
+            ''')
+            .eq('student_id', studentId)
+            .order('issue_date', ascending: false);
+      }
 
       // 3. Assessments for enrolled courses (exclude completed)
 

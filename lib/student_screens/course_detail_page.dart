@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../../DB.dart';
+import '../db.dart';
 import 'models/catalog_course.dart';
 import 'widgets/assessment_quiz_dialog.dart';
 import 'widgets/purchase_success_overlay.dart';
@@ -35,6 +35,7 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
   dynamic _finalExam;
   Set<int> _completedAssessmentIds = {};
   Map<int, dynamic> _filesByLessonId = {};
+  bool _hasFinalCertificate = false;
 
   bool get _hasCourseAccess => !widget.showPurchaseButton;
 
@@ -129,6 +130,18 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
         completedIds = {for (var c in certs) c['assesment_id'] as int};
       }
 
+      bool hasFinalCertificate = false;
+      if (studentId != null) {
+        final finalCert = await supabase
+            .from('certificates')
+            .select('certificate_id')
+            .eq('student_id', studentId)
+            .eq('course_id', courseId)
+            .isFilter('assesment_id', null)
+            .maybeSingle();
+        hasFinalCertificate = finalCert != null;
+      }
+
       // Fetch files for this course's lessons
       final lessonIds = (lessonsData as List)
           .map((l) => l['lesson_id'] as int)
@@ -148,6 +161,7 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
           _finalExam = finalExamData;
           _completedAssessmentIds = completedIds;
           _filesByLessonId = filesMap;
+          _hasFinalCertificate = hasFinalCertificate;
           _isLoading = false;
         });
       }
@@ -430,38 +444,107 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
                           ],
                         ),
                         const SizedBox(height: 12),
-                        Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(16),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.04),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Exam Date: ${_fmtDate(_finalExam['dead_line'])}',
-                                style: const TextStyle(
-                                  fontSize: 15,
-                                  color: Colors.black87,
+                        GestureDetector(
+                          onTap: _hasCourseAccess && !_hasFinalCertificate
+                              ? () {
+                                  showDialog(
+                                    context: context,
+                                    builder: (_) => AssessmentQuizDialog(
+                                      assessmentId:
+                                          _finalExam['final_id'] as int,
+                                      courseId: widget.course.id,
+                                      assessmentTitle:
+                                          _finalExam['title'] ?? 'Final Exam',
+                                      passingMark:
+                                          _finalExam['passing_mark'] ?? 70,
+                                      isFinalExam: true,
+                                    ),
+                                  ).then((_) => _loadCourseDetails());
+                                }
+                              : _hasCourseAccess
+                              ? null
+                              : _showPurchaseRequiredMessage,
+                          child: Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.04),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
                                 ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                'Total Marks: ${_finalExam['total_marks'] ?? 'N/A'}  |  Passing: ${_finalExam['passing_mark'] ?? 'N/A'}%',
-                                style: const TextStyle(
-                                  fontSize: 15,
-                                  color: Colors.black87,
+                              ],
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        _finalExam['title'] ?? 'Final Exam',
+                                        style: const TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                    if (_hasFinalCertificate)
+                                      const Icon(
+                                        Icons.check_circle,
+                                        color: Colors.green,
+                                      )
+                                    else if (!_hasCourseAccess)
+                                      const Icon(
+                                        Icons.lock_outline,
+                                        color: Colors.grey,
+                                      )
+                                    else
+                                      const Icon(
+                                        Icons.chevron_right,
+                                        color: Color(0xFF5B6FF5),
+                                      ),
+                                  ],
                                 ),
-                              ),
-                            ],
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Exam Date: ${_fmtDate(_finalExam['dead_line'])}',
+                                  style: const TextStyle(
+                                    fontSize: 15,
+                                    color: Colors.black87,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Total Marks: ${_finalExam['total_marks'] ?? 'N/A'}  |  Passing: ${_finalExam['passing_mark'] ?? 'N/A'}%',
+                                  style: const TextStyle(
+                                    fontSize: 15,
+                                    color: Colors.black87,
+                                  ),
+                                ),
+                                if (!_hasCourseAccess) ...[
+                                  const SizedBox(height: 8),
+                                  const Text(
+                                    'Purchase required to attempt the final exam.',
+                                    style: TextStyle(
+                                      color: Colors.grey,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ] else if (_hasFinalCertificate) ...[
+                                  const SizedBox(height: 8),
+                                  const Text(
+                                    'Completed. Certificate awarded.',
+                                    style: TextStyle(
+                                      color: Colors.green,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
                           ),
                         ),
                         const SizedBox(height: 24),
@@ -735,7 +818,9 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
                   assessmentTitle: title,
                   passingMark: assessment['passing_mark'] ?? 70,
                 ),
-              );
+              ).then((passed) {
+                if (passed == true) _loadCourseDetails();
+              });
             },
       child: Container(
         padding: const EdgeInsets.all(16),
