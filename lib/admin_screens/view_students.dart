@@ -26,7 +26,7 @@ class _ViewStudentsScreenState extends State<ViewStudentsScreen> {
     try {
       final response = await supabase
           .from('students')
-          .select('student_id, class_name, enrollment_date, is_active, users(full_name, email)')
+          .select('student_id, enrollment_date, is_active, users(full_name, email)')
           .order('student_id', ascending: false);
 
       setState(() => students = response);
@@ -86,7 +86,6 @@ class _ViewStudentsScreenState extends State<ViewStudentsScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text('Email: ${user?['email'] ?? '-'}'),
-                  Text('Class: ${student['class_name'] ?? '-'}'),
                   Text(
                     'Status: ${statusText(student)}',
                     style: TextStyle(
