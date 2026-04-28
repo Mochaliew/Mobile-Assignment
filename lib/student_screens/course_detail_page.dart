@@ -36,6 +36,16 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
   Set<int> _completedAssessmentIds = {};
   Map<int, dynamic> _filesByLessonId = {};
 
+  bool get _hasCourseAccess => !widget.showPurchaseButton;
+
+  void _showPurchaseRequiredMessage() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Please purchase this course to access this content.'),
+      ),
+    );
+  }
+
   Future<void> _openMeetLink(String meetLink) async {
     final trimmedLink = meetLink.trim();
     final linkWithScheme = trimmedLink.startsWith(RegExp(r'https?://'))
@@ -307,6 +317,40 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
                           ],
                         ),
                         const SizedBox(height: 12),
+                        if (!_hasCourseAccess) ...[
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFFF7E6),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: const Color(0xFFFFD58A),
+                              ),
+                            ),
+                            child: const Row(
+                              children: [
+                                Icon(
+                                  Icons.lock_outline,
+                                  color: Color(0xFFB45309),
+                                  size: 18,
+                                ),
+                                SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'Preview only. Purchase this course to join meetings, view materials, download files, and take assessments.',
+                                    style: TextStyle(
+                                      color: Color(0xFF92400E),
+                                      fontSize: 13,
+                                      height: 1.3,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                        ],
                         ..._lessons.asMap().entries.map((entry) {
                           final index = entry.key;
                           final lesson = entry.value;
@@ -323,6 +367,7 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
                                   : null,
                               file:
                                   _filesByLessonId[lesson['lesson_id'] as int],
+                              hasAccess: _hasCourseAccess,
                             ),
                           );
                         }),
@@ -360,6 +405,7 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
                               isCompleted: _completedAssessmentIds.contains(
                                 a['assessment_id'] as int,
                               ),
+                              hasAccess: _hasCourseAccess,
                             ),
                           );
                         }),
@@ -462,6 +508,7 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
     String? meetLink,
     DateTime? scheduleDate,
     dynamic file,
+    required bool hasAccess,
   }) {
     final now = DateTime.now();
     final isPast = scheduleDate != null && scheduleDate.isBefore(now);
@@ -499,12 +546,21 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
             children: [
               if (meetLink != null && meetLink.isNotEmpty)
                 ElevatedButton.icon(
-                  onPressed: () => _openMeetLink(meetLink),
-                  icon: const Icon(Icons.video_call, size: 18),
-                  label: const Text('Go to GMeet'),
+                  onPressed: hasAccess
+                      ? () => _openMeetLink(meetLink)
+                      : _showPurchaseRequiredMessage,
+                  icon: Icon(
+                    hasAccess ? Icons.video_call : Icons.lock_outline,
+                    size: 18,
+                  ),
+                  label: Text(hasAccess ? 'Go to GMeet' : 'Locked'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF5B6FF5),
-                    foregroundColor: Colors.white,
+                    backgroundColor: hasAccess
+                        ? const Color(0xFF5B6FF5)
+                        : Colors.grey.shade300,
+                    foregroundColor: hasAccess
+                        ? Colors.white
+                        : Colors.grey.shade700,
                     padding: const EdgeInsets.symmetric(
                       horizontal: 12,
                       vertical: 8,
@@ -552,11 +608,18 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
                   ),
                 ),
                 TextButton.icon(
-                  onPressed: () => _viewMaterial(file),
-                  icon: const Icon(Icons.visibility_outlined, size: 16),
-                  label: const Text('View'),
+                  onPressed: hasAccess
+                      ? () => _viewMaterial(file)
+                      : _showPurchaseRequiredMessage,
+                  icon: Icon(
+                    hasAccess ? Icons.visibility_outlined : Icons.lock_outline,
+                    size: 16,
+                  ),
+                  label: Text(hasAccess ? 'View' : 'Locked'),
                   style: TextButton.styleFrom(
-                    foregroundColor: const Color(0xFF5B6FF5),
+                    foregroundColor: hasAccess
+                        ? const Color(0xFF5B6FF5)
+                        : Colors.grey.shade600,
                     textStyle: const TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
@@ -564,9 +627,13 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
                   ),
                 ),
                 IconButton(
-                  onPressed: () => _downloadMaterial(file, lessonTitle: title),
+                  onPressed: hasAccess
+                      ? () => _downloadMaterial(file, lessonTitle: title)
+                      : _showPurchaseRequiredMessage,
                   icon: const Icon(Icons.download_outlined, size: 20),
-                  color: const Color(0xFF5B6FF5),
+                  color: hasAccess
+                      ? const Color(0xFF5B6FF5)
+                      : Colors.grey.shade500,
                   tooltip: 'Download',
                 ),
               ],
@@ -654,9 +721,10 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
     required String passing,
     required String deadline,
     required bool isCompleted,
+    required bool hasAccess,
   }) {
     return GestureDetector(
-      onTap: isCompleted
+      onTap: isCompleted || !hasAccess
           ? null
           : () {
               showDialog(
@@ -723,6 +791,8 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
                       ],
                     ),
                   )
+                else if (!hasAccess)
+                  const Icon(Icons.lock_outline, color: Colors.grey)
                 else
                   const Icon(Icons.chevron_right, color: Color(0xFF5B6FF5)),
               ],
@@ -743,6 +813,13 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
                 ),
               ],
             ),
+            if (!hasAccess) ...[
+              const SizedBox(height: 8),
+              const Text(
+                'Purchase required to attempt this assessment.',
+                style: TextStyle(color: Colors.grey, fontSize: 12),
+              ),
+            ],
           ],
         ),
       ),
