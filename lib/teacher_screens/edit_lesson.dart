@@ -29,9 +29,7 @@ class _EditLessonState extends State<EditLesson> {
   
   PlatformFile? _pickedFile;
 
-  // Local list to manage files during editing
   List<CourseFile> _existingFiles = [];
-  // Track IDs to delete from DB on save
   final List<CourseFile> _filesToDelete = [];
 
   void snackbar(String s, [Color? c]) {
@@ -133,7 +131,6 @@ class _EditLessonState extends State<EditLesson> {
         } catch (_) {}
       }
 
-      // 2. Delete records from DB
       await supabase.from('course_files').delete().eq('lesson_id', widget.lesson.lessonId);
       await supabase.from('lessons').delete().eq('lesson_id', widget.lesson.lessonId);
 
@@ -163,11 +160,8 @@ class _EditLessonState extends State<EditLesson> {
     }
 
     try {
-      // 1. Process pending file deletions
       for (final file in _filesToDelete) {
-        // Delete from DB
         await supabase.from('course_files').delete().eq('course_file_id', file.courseFileId);
-        // Try to delete from storage
         try {
           final uri = Uri.parse(file.filePath);
           final pathSegments = uri.pathSegments;
@@ -179,7 +173,6 @@ class _EditLessonState extends State<EditLesson> {
         } catch (_) {}
       }
 
-      // 2. Update lesson details
       await supabase.from('lessons').update({
         'title': title,
         'description': _descController.text.trim(),
@@ -187,7 +180,6 @@ class _EditLessonState extends State<EditLesson> {
         'schedule_date': schedule?.toIso8601String(),
       }).eq('lesson_id', widget.lesson.lessonId);
 
-      // 3. Upload new file if picked
       if (_pickedFile != null) {
         final lessonId = widget.lesson.lessonId;
         final fileExt = _pickedFile!.extension ?? '';
