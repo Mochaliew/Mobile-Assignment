@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide User;
 import '../db.dart';
 import 'student_main_shell.dart';
+import 'student_session_tracker.dart';
 import 'student_signup.dart';
 
 class StudentLogin extends StatefulWidget {
@@ -92,15 +93,7 @@ class _StudentLoginState extends State<StudentLogin> {
 
       // Start a new session for study-time tracking
       try {
-        final now = DateTime.now();
-        final weekStart = now.subtract(Duration(days: now.weekday % 7));
-        final weekStr =
-            '${weekStart.year}-${weekStart.month.toString().padLeft(2, '0')}-${weekStart.day.toString().padLeft(2, '0')}';
-        await supabase.from('student_sessions').insert({
-          'student_id': sid,
-          'start_time': now.toIso8601String(),
-          'week_start_date': weekStr,
-        });
+        await StudentSessionTracker.startSession(sid);
       } catch (_) {}
 
       if (!mounted) return;

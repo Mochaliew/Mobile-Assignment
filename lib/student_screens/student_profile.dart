@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../db.dart';
 import '../teacher_screens/teacher_login.dart';
+import 'certificate_viewer.dart';
+import 'student_session_tracker.dart';
 
 class StudentProfile extends StatefulWidget {
   const StudentProfile({super.key});
@@ -24,7 +26,7 @@ class _StudentProfileState extends State<StudentProfile> {
   final String _className = 'Class 9A';
 
   String _loginStreak = '0 days';
-  String _weeklyStudyHours = '0 hrs';
+  String _weeklyStudyMinutes = '0 min';
   String _courseProgressPercent = '0%';
 
   int? _editingIndex; // null = not editing, -1 = adding new
@@ -105,21 +107,12 @@ class _StudentProfileState extends State<StudentProfile> {
       } catch (_) {}
 
       // Calculate weekly study time from student_sessions
-      String studyText = '0 hrs';
+      String studyText = '0 min';
       try {
-        final now = DateTime.now();
-        final weekStart = now.subtract(Duration(days: now.weekday % 7));
-        final sessions = await supabase
-            .from('student_sessions')
-            .select('duration_seconds')
-            .eq('student_id', studentId)
-            .gte('week_start_date', weekStart.toIso8601String());
-        final totalSeconds = sessions.fold<int>(
-          0,
-          (sum, s) => sum + ((s['duration_seconds'] ?? 0) as int),
+        final minutes = await StudentSessionTracker.weeklyStudyMinutes(
+          studentId,
         );
-        final hours = totalSeconds / 3600;
-        studyText = '${hours.toStringAsFixed(1)} hrs';
+        studyText = '$minutes min';
       } catch (_) {}
 
       // Calculate overall progress: completed assessments / total assessments
@@ -153,7 +146,7 @@ class _StudentProfileState extends State<StudentProfile> {
           _notes = notesData;
           _certificates = certificatesData;
           _loginStreak = streakText;
-          _weeklyStudyHours = studyText;
+          _weeklyStudyMinutes = studyText;
           _courseProgressPercent = progressText;
           _isLoading = false;
         });
@@ -172,26 +165,7 @@ class _StudentProfileState extends State<StudentProfile> {
     final studentId = StudentSession.studentId;
     if (studentId != null) {
       try {
-        final openSession = await supabase
-            .from('student_sessions')
-            .select('session_id, start_time')
-            .eq('student_id', studentId)
-            .isFilter('end_time', null)
-            .order('start_time', ascending: false)
-            .limit(1)
-            .maybeSingle();
-        if (openSession != null) {
-          final start = DateTime.parse(openSession['start_time'] as String);
-          final end = DateTime.now();
-          final duration = end.difference(start).inSeconds;
-          await supabase
-              .from('student_sessions')
-              .update({
-                'end_time': end.toIso8601String(),
-                'duration_seconds': duration,
-              })
-              .eq('session_id', openSession['session_id'] as int);
-        }
+        await StudentSessionTracker.endCurrentSession(studentId);
       } catch (_) {}
     }
     StudentSession.clear();
@@ -289,88 +263,12 @@ class _StudentProfileState extends State<StudentProfile> {
     return Color(int.parse(buffer.toString(), radix: 16));
   }
 
-  void _showCertificateDialog(String course, String instructor, String date) {
-    showDialog(
-      context: context,
-      builder: (_) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Align(
-                alignment: Alignment.topRight,
-                child: GestureDetector(
-                  onTap: () => Navigator.pop(context),
-                  child: const Icon(Icons.close, color: Colors.grey),
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: const BoxDecoration(
-                  color: Color(0xFFEDE9FE),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.emoji_events,
-                  color: Color(0xFF5B6FF5),
-                  size: 32,
-                ),
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'Certificate of Completion',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 24),
-              _certInfo('Course', course),
-              const SizedBox(height: 16),
-              _certInfo('Instructor', instructor),
-              const SizedBox(height: 16),
-              _certInfo('Issue Date', date),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Downloading certificate PDF...'),
-                      ),
-                    );
-                  },
-                  icon: const Icon(Icons.download),
-                  label: const Text('View Certificate (PDF)'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF5B6FF5),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
+  void _openCertificate(CertificateData certificate) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CertificateViewer(certificate: certificate),
       ),
-    );
-  }
-
-  Widget _certInfo(String label, String value) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: const TextStyle(color: Colors.grey, fontSize: 14)),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-        ),
-      ],
     );
   }
 
@@ -649,8 +547,8 @@ class _StudentProfileState extends State<StudentProfile> {
               _statItem(
                 Icons.access_time,
                 Colors.blue,
-                _weeklyStudyHours,
-                'Weekly Study\nTime',
+                _weeklyStudyMinutes,
+                'Minutes This\nWeek',
               ),
               _statItem(
                 Icons.trending_up,
@@ -730,7 +628,15 @@ class _StudentProfileState extends State<StudentProfile> {
               padding: EdgeInsets.only(
                 bottom: entry.key < _certificates.length - 1 ? 10 : 0,
               ),
-              child: _certificateTile(title, instructor, dateText),
+              child: _certificateTile(
+                CertificateData(
+                  studentName: _name,
+                  courseTitle: course?['title'] ?? 'Course',
+                  assessmentTitle: title,
+                  instructor: instructor,
+                  issueDate: dateText,
+                ),
+              ),
             );
           }),
         ],
@@ -738,9 +644,9 @@ class _StudentProfileState extends State<StudentProfile> {
     );
   }
 
-  Widget _certificateTile(String title, String instructor, String date) {
+  Widget _certificateTile(CertificateData certificate) {
     return GestureDetector(
-      onTap: () => _showCertificateDialog(title, instructor, date),
+      onTap: () => _openCertificate(certificate),
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
@@ -767,7 +673,7 @@ class _StudentProfileState extends State<StudentProfile> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    title,
+                    certificate.assessmentTitle,
                     style: const TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
@@ -775,12 +681,12 @@ class _StudentProfileState extends State<StudentProfile> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    instructor,
+                    certificate.instructor,
                     style: const TextStyle(color: Colors.grey, fontSize: 13),
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    date,
+                    certificate.issueDate,
                     style: const TextStyle(color: Colors.grey, fontSize: 13),
                   ),
                 ],

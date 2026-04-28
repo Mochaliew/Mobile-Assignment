@@ -102,7 +102,6 @@ class _CreateLessonState extends State<CreateLesson> {
     }
 
     try {
-      // 1. Create Lesson record
       final lessonRes = await supabase.from('lessons').insert({
         'course_id': widget.courseId,
         'title': title,
@@ -113,7 +112,6 @@ class _CreateLessonState extends State<CreateLesson> {
 
       final lessonId = lessonRes['lesson_id'];
 
-      // 2. Upload file if materials
       if (_lessonType == 'materials' && _pickedFile != null) {
         final fileExt = _pickedFile!.extension ?? '';
         final fileName = '${DateTime.now().millisecondsSinceEpoch}.$fileExt';
@@ -136,7 +134,6 @@ class _CreateLessonState extends State<CreateLesson> {
 
         final publicUrl = supabase.storage.from('course-materials').getPublicUrl(filePath);
 
-        // 3. Create CourseFile record
         await supabase.from('course_files').insert({
           'lesson_id': lessonId,
           'file_path': publicUrl,
@@ -167,7 +164,6 @@ class _CreateLessonState extends State<CreateLesson> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Course name hint
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(8)),

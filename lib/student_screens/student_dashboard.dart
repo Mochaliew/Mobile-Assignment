@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../db.dart';
 import '../teacher_screens/teacher_login.dart';
+import 'certificate_viewer.dart';
 import 'course_detail_page.dart';
 import 'models/catalog_course.dart';
+import 'student_session_tracker.dart';
 
 class StudentDashboard extends StatefulWidget {
   const StudentDashboard({super.key});
@@ -150,27 +152,7 @@ class _StudentDashboardState extends State<StudentDashboard> {
     final studentId = StudentSession.studentId;
     if (studentId != null) {
       try {
-        final supabase = Supabase.instance.client;
-        final openSession = await supabase
-            .from('student_sessions')
-            .select('session_id, start_time')
-            .eq('student_id', studentId)
-            .isFilter('end_time', null)
-            .order('start_time', ascending: false)
-            .limit(1)
-            .maybeSingle();
-        if (openSession != null) {
-          final start = DateTime.parse(openSession['start_time'] as String);
-          final end = DateTime.now();
-          final duration = end.difference(start).inSeconds;
-          await supabase
-              .from('student_sessions')
-              .update({
-                'end_time': end.toIso8601String(),
-                'duration_seconds': duration,
-              })
-              .eq('session_id', openSession['session_id'] as int);
-        }
+        await StudentSessionTracker.endCurrentSession(studentId);
       } catch (_) {}
     }
     StudentSession.clear();
@@ -183,88 +165,12 @@ class _StudentDashboardState extends State<StudentDashboard> {
     }
   }
 
-  void _showCertificateDialog(String course, String instructor, String date) {
-    showDialog(
-      context: context,
-      builder: (_) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Align(
-                alignment: Alignment.topRight,
-                child: GestureDetector(
-                  onTap: () => Navigator.pop(context),
-                  child: const Icon(Icons.close, color: Colors.grey),
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: const BoxDecoration(
-                  color: Color(0xFFEDE9FE),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.emoji_events,
-                  color: Color(0xFF5B6FF5),
-                  size: 32,
-                ),
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'Certificate of Completion',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 24),
-              _buildCertInfo('Course', course),
-              const SizedBox(height: 16),
-              _buildCertInfo('Instructor', instructor),
-              const SizedBox(height: 16),
-              _buildCertInfo('Issue Date', date),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Downloading certificate PDF...'),
-                      ),
-                    );
-                  },
-                  icon: const Icon(Icons.download),
-                  label: const Text('View Certificate (PDF)'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF5B6FF5),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
+  void _openCertificate(CertificateData certificate) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CertificateViewer(certificate: certificate),
       ),
-    );
-  }
-
-  Widget _buildCertInfo(String label, String value) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: const TextStyle(color: Colors.grey, fontSize: 14)),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-        ),
-      ],
     );
   }
 
@@ -654,6 +560,7 @@ class _StudentDashboardState extends State<StudentDashboard> {
     final course = cert['courses'];
     final assessment = cert['assessments'];
     final title = assessment?['title'] ?? course?['title'] ?? 'Course';
+    final courseTitle = course?['title'] ?? 'Course';
     final instructor = course?['teachers']?['users']?['full_name'] ?? 'Unknown';
     final issueDate = cert['issue_date'] != null
         ? DateTime.tryParse(cert['issue_date'])
@@ -661,7 +568,15 @@ class _StudentDashboardState extends State<StudentDashboard> {
     final dateText = issueDate != null ? _fmtDate(issueDate) : 'N/A';
 
     return GestureDetector(
-      onTap: () => _showCertificateDialog(title, instructor, dateText),
+      onTap: () => _openCertificate(
+        CertificateData(
+          studentName: StudentSession.studentName ?? 'Student',
+          courseTitle: courseTitle,
+          assessmentTitle: title,
+          instructor: instructor,
+          issueDate: dateText,
+        ),
+      ),
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
